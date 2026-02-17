@@ -10,12 +10,40 @@ from aiogram.types import Message
 from aiogram.filters import CommandStart, CommandObject
 
 from config import LEAD_RATE_LIMIT_PER_HOUR, OWNER_ID
-from bot.texts import WELCOME, LEAD_SENT, LEAD_RATE_LIMIT, BTN_USER_WRITE, USER_WRITE_HINT
+from bot.texts import (
+    WELCOME,
+    LEAD_SENT,
+    LEAD_RATE_LIMIT,
+    BTN_USER_WRITE,
+    USER_WRITE_HINT,
+    BTN_HELP,
+    BTN_HISTORY,
+    BTN_POST_ON,
+    BTN_POST_OFF,
+    BTN_SCHEDULE,
+    BTN_BANNER,
+    BTN_TARGET_GROUP,
+    BTN_LEAD_GROUP,
+    BTN_ADMINS,
+)
 from bot.services import user_service, leads_service, settings_service, admin_service
 from bot.keyboards.reply import user_main_keyboard, admin_main_keyboard
 
 logger = logging.getLogger(__name__)
 router = Router(name="user")
+
+# Admin/owner reply keyboard texts — lead handler must not consume these (let admin router handle)
+_ADMIN_OWNER_BUTTONS = frozenset({
+    BTN_HELP,
+    BTN_HISTORY,
+    BTN_POST_ON,
+    BTN_POST_OFF,
+    BTN_SCHEDULE,
+    BTN_BANNER,
+    BTN_TARGET_GROUP,
+    BTN_LEAD_GROUP,
+    BTN_ADMINS,
+})
 
 # In-memory: telegram_id -> content_id (set when user opens bot via post link)
 _lead_source_by_user: dict[int, int] = {}
@@ -68,15 +96,20 @@ async def btn_user_write(message: Message) -> None:
     await message.answer(USER_WRITE_HINT)
 
 
-@router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
+@router.message(
+    F.chat.type == "private",
+    F.text,
+    ~F.text.startswith("/"),
+    F.text.filter(lambda t: t not in _ADMIN_OWNER_BUTTONS),
+)
 async def private_message_as_lead(message: Message) -> None:
     """
     Non-command text in private is forwarded to admin group as lead (with rate limit).
-    Commands (starting with /) go to admin/owner routers. Owner/admin messages are not forwarded as leads.
+    Admin/owner reply button texts are excluded so they reach admin/owner routers.
     """
     uid = message.from_user.id if message.from_user else 0
     if uid == OWNER_ID or await admin_service.is_admin(uid):
-        return  # Let admin/owner use commands; their plain text is not treated as lead
+        return  # Admin/owner plain text is not treated as lead
     user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
