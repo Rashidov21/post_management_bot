@@ -102,6 +102,50 @@ async def delete_content(content_id: int) -> bool:
     return cur.rowcount > 0
 
 
+async def set_content_active(content_id: int) -> bool:
+    """Set this content as active (and deactivate others). Returns True if content existed and was updated."""
+    conn = get_db()
+    async with conn.execute("SELECT id FROM content WHERE id = ?", (content_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return False
+    await conn.execute("UPDATE content SET status = 'deleted' WHERE status = 'active'")
+    cur = await conn.execute(
+        "UPDATE content SET status = 'active' WHERE id = ?",
+        (content_id,),
+    )
+    await conn.commit()
+    return cur.rowcount > 0
+
+
+async def get_last_posted_at_map(content_ids: List[int]) -> dict:
+    """Return {content_id: posted_at} for each content that has at least one post in posts_log."""
+    if not content_ids:
+        return {}
+    conn = get_db()
+    placeholders = ",".join("?" * len(content_ids))
+    async with conn.execute(
+        f"""SELECT content_id, MAX(posted_at) AS last_posted
+            FROM posts_log WHERE content_id IN ({placeholders}) GROUP BY content_id""",
+        content_ids,
+    ) as cur:
+        rows = await cur.fetchall()
+    result = {}
+    for row in rows:
+        raw = row["last_posted"]
+        if isinstance(raw, str):
+            try:
+                result[row["content_id"]] = datetime.fromisoformat(raw.replace(" ", "T", 1))
+            except ValueError:
+                try:
+                    result[row["content_id"]] = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    result[row["content_id"]] = raw
+        else:
+            result[row["content_id"]] = raw
+    return result
+
+
 async def log_post(content_id: int, group_id: int, message_id: int) -> None:
     """Append to posts_log."""
     conn = get_db()

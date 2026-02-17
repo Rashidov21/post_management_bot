@@ -6,6 +6,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from bot.texts import (
     BTN_USER_WRITE,
+    BTN_USER_ADMINS,
     BTN_HELP,
     BTN_HISTORY,
     BTN_POST_ON,
@@ -19,10 +20,10 @@ from bot.texts import (
 
 
 def user_main_keyboard() -> ReplyKeyboardMarkup:
-    """User: single button to send message (lead)."""
+    """User: send message (lead) and admin list."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_USER_WRITE)],
+            [KeyboardButton(text=BTN_USER_WRITE), KeyboardButton(text=BTN_USER_ADMINS)],
         ],
         resize_keyboard=True,
     )

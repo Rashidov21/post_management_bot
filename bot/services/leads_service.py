@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def _row_to_lead(row) -> Lead:
+    phone = None
+    try:
+        if hasattr(row, "keys") and "phone_number" in row.keys():
+            phone = row["phone_number"]
+    except Exception:
+        pass
     return Lead(
         id=row["id"],
         user_id=row["user_id"],
@@ -21,6 +27,7 @@ def _row_to_lead(row) -> Lead:
         status=row["status"],
         taken_by_telegram_id=row["taken_by_telegram_id"],
         created_at=datetime.fromisoformat(row["created_at"]) if isinstance(row["created_at"], str) else row["created_at"],
+        phone_number=phone,
     )
 
 
@@ -29,12 +36,13 @@ async def create_lead(
     telegram_user_id: int,
     message_text: str,
     source_content_id: Optional[int] = None,
+    phone_number: Optional[str] = None,
 ) -> Lead:
     conn = get_db()
     cur = await conn.execute(
-        """INSERT INTO leads (user_id, telegram_user_id, message_text, source_content_id, status)
-           VALUES (?, ?, ?, ?, 'pending')""",
-        (user_id, telegram_user_id, message_text, source_content_id),
+        """INSERT INTO leads (user_id, telegram_user_id, message_text, source_content_id, status, phone_number)
+           VALUES (?, ?, ?, ?, 'pending', ?)""",
+        (user_id, telegram_user_id, message_text, source_content_id, phone_number),
     )
     rid = cur.lastrowid
     await conn.commit()
@@ -64,9 +72,11 @@ async def take_lead(lead_id: int, by_telegram_id: int) -> bool:
 async def count_leads_from_user_since(telegram_user_id: int, since: datetime) -> int:
     """For rate limiting: count leads from this user since `since`."""
     conn = get_db()
+    # SQLite stores "YYYY-MM-DD HH:MM:SS"; use same format for reliable comparison
+    since_str = since.strftime("%Y-%m-%d %H:%M:%S") if hasattr(since, "strftime") else str(since)
     async with conn.execute(
         "SELECT COUNT(*) AS c FROM leads WHERE telegram_user_id = ? AND created_at >= ?",
-        (telegram_user_id, since.isoformat()),
+        (telegram_user_id, since_str),
     ) as cur:
         row = await cur.fetchone()
     return row["c"] if row else 0

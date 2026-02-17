@@ -14,13 +14,6 @@ from bot.texts import (
 )
 
 
-def contact_admin_keyboard(post_id: int | None = None) -> InlineKeyboardMarkup:
-    """Single button: Contact Admin. Optional post_id for lead source."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=CONTACT_ADMIN_BUTTON, url="https://t.me/placeholder_bot")],
-    ])
-
-
 def contact_admin_keyboard_start_link(bot_username: str, post_id: int | None = None) -> InlineKeyboardMarkup:
     """Contact Admin button that opens bot (start with optional start_param for post_id)."""
     url = f"https://t.me/{bot_username}"
@@ -50,6 +43,18 @@ def history_refresh_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")],
     ])
+
+
+def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
+    """Per-post actions: O'chirish (active) or Aktivlashtirish (deleted), plus refresh."""
+    rows = []
+    for p in posts:
+        if getattr(p, "status", None) == "active":
+            rows.append([InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{p.id}")])
+        else:
+            rows.append([InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}")])
+    rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def owner_admins_keyboard() -> InlineKeyboardMarkup:

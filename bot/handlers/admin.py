@@ -11,10 +11,11 @@ from aiogram.types import Message, CallbackQuery
 from bot.texts import (
     HELP_HEADER,
     CMD_START, CMD_HELP, CMD_SET_TIMES, CMD_POST_ON, CMD_POST_OFF,
-    CMD_HISTORY, CMD_DELETE_POST, CMD_SET_BANNER, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
+    CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_SET_BANNER, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
     CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
     POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, ADMIN_GROUP_SET, BANNER_SET,
-    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
+    GROUP_ID_SHOULD_BE_NEGATIVE,
+    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     ADMIN_ONLY,
 )
@@ -36,7 +37,7 @@ from bot.texts import (
     BTN_LEAD_GROUP,
 )
 from bot.keyboards.reply import admin_main_keyboard
-from bot.keyboards.inline import history_refresh_keyboard
+from bot.keyboards.inline import history_refresh_keyboard, history_actions_keyboard
 from config import OWNER_ID
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def _help_text() -> str:
         CMD_POST_OFF,
         CMD_HISTORY,
         CMD_DELETE_POST,
+        CMD_ACTIVATE_POST,
         CMD_SET_BANNER,
         CMD_ADD_TEXT,
         CMD_SET_TARGET_GROUP,
@@ -169,18 +171,30 @@ async def cmd_post_off(message: Message) -> None:
 
 
 # ---------- History & delete ----------
+def _format_posted_at(dt) -> str:
+    """Format datetime for 'oxirgi nashr' display."""
+    if dt is None:
+        return "—"
+    if hasattr(dt, "strftime"):
+        return dt.strftime("%d.%m.%Y %H:%M")
+    return str(dt)
+
+
 async def _send_history(target):
-    """Send or edit history list with refresh inline button."""
+    """Send or edit history list with last posted time and refresh inline button."""
     posts = await content_service.list_all_posts_for_history(limit=20)
     if not posts:
         text = HISTORY_HEADER + "\n(bo'sh)"
     else:
+        cids = [p.id for p in posts]
+        last_posted = await content_service.get_last_posted_at_map(cids)
         lines = [HISTORY_HEADER]
         for p in posts:
             status = "✅" if p.status == "active" else "❌"
-            lines.append(f"{status} ID: {p.id} | {p.content_type} | {p.created_at}")
+            posted_str = _format_posted_at(last_posted.get(p.id))
+            lines.append(f"{status} ID: {p.id} | {p.content_type} | yaratilgan: {p.created_at} | oxirgi nashr: {posted_str}")
         text = "\n".join(lines)
-    kb = history_refresh_keyboard()
+    kb = history_actions_keyboard(posts)
     if hasattr(target, "answer"):
         await target.answer(text, reply_markup=kb)
     else:
@@ -227,6 +241,49 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
         await callback.answer(POST_NOT_FOUND)
 
 
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/activate_post\s+(\d+)$")))
+async def cmd_activate_post(message: Message) -> None:
+    """Set a deleted post as active again."""
+    match = message.text and re.match(r"^/activate_post\s+(\d+)$", message.text)
+    if not match:
+        return
+    cid = int(match.group(1))
+    content = await content_service.get_content_by_id(cid)
+    if not content:
+        await message.answer(POST_NOT_FOUND, reply_markup=_admin_kb(message))
+        return
+    if content.status == "active":
+        await message.answer(POST_ALREADY_ACTIVE, reply_markup=_admin_kb(message))
+        return
+    ok = await content_service.set_content_active(cid)
+    if ok:
+        await message.answer(POST_ACTIVATED, reply_markup=_admin_kb(message))
+    else:
+        await message.answer(POST_NOT_FOUND, reply_markup=_admin_kb(message))
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^activate_post_(\d+)$")))
+async def cb_activate_post(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^activate_post_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    cid = int(match.group(1))
+    content = await content_service.get_content_by_id(cid)
+    if not content:
+        await callback.answer(POST_NOT_FOUND)
+        return
+    if content.status == "active":
+        await callback.answer(POST_ALREADY_ACTIVE)
+        return
+    ok = await content_service.set_content_active(cid)
+    if ok:
+        await callback.answer(POST_ACTIVATED)
+        await _send_history(callback)
+    else:
+        await callback.answer(POST_NOT_FOUND)
+
+
 # ---------- Banner ----------
 @router.message(F.chat.type == "private", F.photo, F.caption.regexp(re.compile(r"^/set_banner", re.I)))
 async def admin_set_banner(message: Message) -> None:
@@ -247,11 +304,25 @@ async def cmd_set_target_group_in_group(message: Message) -> None:
     await message.answer(TARGET_GROUP_SET)
 
 
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_target_group\s+(-?\d+)$")))
+async def cmd_set_target_group_id_private(message: Message) -> None:
+    """Set target group by ID from private chat: /set_target_group -1001234567890."""
+    match = message.text and re.match(r"^/set_target_group\s+(-?\d+)$", message.text)
+    if not match:
+        return
+    gid = int(match.group(1))
+    if gid >= 0:
+        await message.answer(GROUP_ID_SHOULD_BE_NEGATIVE, reply_markup=_admin_kb(message))
+        return
+    await settings_service.set_target_group_id(gid)
+    await message.answer(TARGET_GROUP_SET, reply_markup=_admin_kb(message))
+
+
 @router.message(F.chat.type == "private", F.text == "/set_target_group")
 @router.message(F.chat.type == "private", F.text == BTN_TARGET_GROUP)
 async def cmd_set_target_group_private(message: Message) -> None:
     await message.answer(
-        "Nashr guruhida /set_target_group buyrug'ini yuboring.",
+        "Nashr guruhida /set_target_group buyrug'ini yuboring yoki guruh ID bilan: /set_target_group -1001234567890",
         reply_markup=_admin_kb(message),
     )
 
@@ -283,11 +354,25 @@ async def cmd_set_admin_group_in_group(message: Message) -> None:
     await message.answer(ADMIN_GROUP_SET)
 
 
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_admin_group\s+(-?\d+)$")))
+async def cmd_set_admin_group_id_private(message: Message) -> None:
+    """Set admin group by ID from private chat: /set_admin_group -1001234567890."""
+    match = message.text and re.match(r"^/set_admin_group\s+(-?\d+)$", message.text)
+    if not match:
+        return
+    gid = int(match.group(1))
+    if gid >= 0:
+        await message.answer(GROUP_ID_SHOULD_BE_NEGATIVE, reply_markup=_admin_kb(message))
+        return
+    await settings_service.set_admin_group_id(gid)
+    await message.answer(ADMIN_GROUP_SET, reply_markup=_admin_kb(message))
+
+
 @router.message(F.chat.type == "private", F.text == "/set_admin_group")
 @router.message(F.chat.type == "private", F.text == BTN_LEAD_GROUP)
 async def cmd_set_admin_group_private(message: Message) -> None:
     await message.answer(
-        "Leadlar yuboriladigan guruhda /set_admin_group buyrug'ini yuboring.",
+        "Leadlar yuboriladigan guruhda /set_admin_group buyrug'ini yuboring yoki guruh ID: /set_admin_group -1001234567890",
         reply_markup=_admin_kb(message),
     )
 

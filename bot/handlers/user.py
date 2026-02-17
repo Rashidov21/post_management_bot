@@ -17,7 +17,10 @@ from bot.texts import (
     LEAD_SENT,
     LEAD_RATE_LIMIT,
     BTN_USER_WRITE,
+    BTN_USER_ADMINS,
     USER_WRITE_HINT,
+    USER_CONTACT_RECEIVED,
+    USER_ADMINS_LIST_HEADER,
     BTN_HELP,
     BTN_HISTORY,
     BTN_POST_ON,
@@ -45,10 +48,13 @@ _ADMIN_OWNER_BUTTONS = frozenset({
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
     BTN_ADMINS,
+    BTN_USER_ADMINS,
 })
 
 # In-memory: telegram_id -> content_id (set when user opens bot via post link)
 _lead_source_by_user: dict[int, int] = {}
+# In-memory: telegram_id -> phone_number (set when user shares contact before sending lead)
+_user_phone_for_lead: dict[int, str] = {}
 
 
 class _NotAdminOrOwnerFilter(Filter):
@@ -111,6 +117,32 @@ async def btn_user_write(message: Message) -> None:
     await message.answer(USER_WRITE_HINT)
 
 
+@router.message(F.chat.type == "private", F.text == BTN_USER_ADMINS, _NotAdminOrOwnerFilter())
+async def btn_user_admins(message: Message) -> None:
+    """User pressed 'Adminlar ro'yxati' — show admin usernames for contact."""
+    from bot.services import admin_service
+    from bot.texts import LIST_ADMINS_HEADER
+
+    admins = await admin_service.list_admins()
+    if not admins:
+        text = USER_ADMINS_LIST_HEADER + "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
+    else:
+        lines = [USER_ADMINS_LIST_HEADER, ""]
+        for a in admins:
+            uname = f"@{a.username}" if a.username else f"ID: {a.telegram_id}"
+            lines.append(f"• {uname}")
+        text = "\n".join(lines)
+    await message.answer(text)
+
+
+@router.message(F.chat.type == "private", F.contact, _NotAdminOrOwnerFilter())
+async def user_contact_for_lead(message: Message) -> None:
+    """User shared contact — save phone for next lead message."""
+    if message.contact and message.contact.phone_number:
+        _user_phone_for_lead[message.from_user.id] = message.contact.phone_number
+        await message.answer(USER_CONTACT_RECEIVED)
+
+
 @router.message(
     F.chat.type == "private",
     F.text,
@@ -130,6 +162,7 @@ async def private_message_as_lead(message: Message) -> None:
     if source_content_id is None:
         await message.answer(USER_CONTACT_ONLY_VIA_GROUP)
         return
+    phone = _user_phone_for_lead.pop(message.from_user.id, None)
     user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -149,6 +182,7 @@ async def private_message_as_lead(message: Message) -> None:
             telegram_user_id=message.from_user.id,
             message_text=message.text or "",
             source_content_id=source_content_id,
+            phone_number=phone,
         )
         await message.answer(LEAD_SENT)
         return
@@ -157,6 +191,7 @@ async def private_message_as_lead(message: Message) -> None:
         telegram_user_id=message.from_user.id,
         message_text=message.text or "",
         source_content_id=source_content_id,
+        phone_number=phone,
     )
     from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN
     from bot.keyboards.inline import take_lead_keyboard
@@ -164,10 +199,12 @@ async def private_message_as_lead(message: Message) -> None:
     name = message.from_user.full_name or "—"
     username = message.from_user.username or "—"
     source_str = f"#{source_content_id}" if source_content_id else LEAD_SOURCE_UNKNOWN
+    phone_str = phone or "—"
     forward_text = LEAD_FORWARD_TEMPLATE.format(
         name=name,
         username=username,
         user_id=message.from_user.id,
+        phone=phone_str,
         text=(message.text or "")[:500],
         source=source_str,
     )

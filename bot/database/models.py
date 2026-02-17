@@ -74,6 +74,7 @@ class Lead:
     status: LeadStatus
     taken_by_telegram_id: Optional[int]
     created_at: datetime
+    phone_number: Optional[str] = None  # from contact share
 
 
 @dataclass

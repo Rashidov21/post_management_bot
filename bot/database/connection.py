@@ -104,6 +104,11 @@ async def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_posts_log_content ON posts_log(content_id);
         """)
         await conn.commit()
+        try:
+            await conn.execute("ALTER TABLE leads ADD COLUMN phone_number TEXT")
+            await conn.commit()
+        except Exception:
+            pass
         logger.info("Database initialized: %s", DATABASE_PATH)
 
 
