@@ -13,8 +13,9 @@ from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import ErrorEvent
 
-from config import BOT_TOKEN, LOG_LEVEL, LOG_FORMAT, validate_config
+from config import BOT_TOKEN, LOG_LEVEL, LOG_FORMAT, SCHEDULER_TIMEZONE, validate_config
 from bot.database import init_db, open_app_connection, close_app_connection
 from bot.scheduler.posting import post_active_content_to_group
 from bot.services import schedule_service, settings_service
@@ -37,7 +38,7 @@ def setup_logging() -> None:
 
 async def setup_scheduler(bot: Bot, bot_username: str) -> AsyncIOScheduler:
     """Load schedules from DB and add cron jobs. Persistent across restarts."""
-    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler = AsyncIOScheduler(timezone=SCHEDULER_TIMEZONE)
 
     async def job() -> None:
         if not await settings_service.is_posting_enabled():
@@ -82,6 +83,22 @@ async def main() -> None:
     dp.include_router(admin.router)
     owner.router.message.middleware(OwnerOnlyMiddleware())
     dp.include_router(owner.router)
+
+    @dp.error()
+    async def global_error_handler(event: ErrorEvent) -> None:
+        logger.exception("Handler error: %s", event.exception, exc_info=True)
+        try:
+            update = event.update
+            if update.message:
+                await update.message.answer(
+                    "Xatolik yuz berdi. Iltimos keyinroq urinib ko'ring."
+                )
+            elif update.callback_query:
+                await update.callback_query.answer(
+                    "Xatolik yuz berdi.", show_alert=True
+                )
+        except Exception:
+            pass
 
     me = await bot.get_me()
     bot_username = me.username or ""

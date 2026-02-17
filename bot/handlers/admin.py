@@ -11,7 +11,8 @@ from aiogram.types import Message, CallbackQuery
 from bot.texts import (
     HELP_HEADER,
     CMD_START, CMD_HELP, CMD_SET_TIMES, CMD_POST_ON, CMD_POST_OFF,
-    CMD_HISTORY, CMD_DELETE_POST, CMD_SET_BANNER, CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
+    CMD_HISTORY, CMD_DELETE_POST, CMD_SET_BANNER, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
+    CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
     POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, ADMIN_GROUP_SET, BANNER_SET,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
@@ -57,6 +58,7 @@ def _help_text() -> str:
         CMD_HISTORY,
         CMD_DELETE_POST,
         CMD_SET_BANNER,
+        CMD_ADD_TEXT,
         CMD_SET_TARGET_GROUP,
         CMD_SET_ADMIN_GROUP,
     ])
@@ -90,6 +92,30 @@ async def admin_save_video(message: Message) -> None:
         caption=message.caption,
     )
     await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+
+
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
+async def admin_add_text_content(message: Message) -> None:
+    """Add text-only post: /add_text <matn>."""
+    match = re.match(r"^/add_text\s+(.+)$", message.text, re.DOTALL)
+    if not match:
+        return
+    text = match.group(1).strip()
+    if not text:
+        await message.answer(ADD_TEXT_EMPTY, reply_markup=_admin_kb(message))
+        return
+    await content_service.add_content(
+        content_type="text",
+        created_by=message.from_user.id,
+        text=text,
+    )
+    await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+
+
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s*$")))
+async def admin_add_text_empty(message: Message) -> None:
+    """Prompt when /add_text has no body."""
+    await message.answer(ADD_TEXT_EMPTY, reply_markup=_admin_kb(message))
 
 
 @router.message(F.chat.type == "private", F.text, F.text.startswith("/") == False)

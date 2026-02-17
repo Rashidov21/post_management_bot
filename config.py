@@ -31,6 +31,9 @@ LEAD_RATE_LIMIT_PER_HOUR: int = int(os.getenv("LEAD_RATE_LIMIT_PER_HOUR", "10"))
 # Domain for docs (optional)
 BOT_DOMAIN: str = os.getenv("BOT_DOMAIN", "postbot.rashidevs.uz")
 
+# Scheduler timezone (e.g. Asia/Tashkent for Uzbekistan)
+SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE", "Asia/Tashkent")
+
 
 def validate_config() -> None:
     """Validate required config. Raises ValueError if invalid."""
