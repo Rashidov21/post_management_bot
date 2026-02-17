@@ -1,5 +1,7 @@
 .env
 .venv
+data/
+bot.log
 __pycache__
 *.pyc
 *.pyo

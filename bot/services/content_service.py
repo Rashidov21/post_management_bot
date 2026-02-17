@@ -33,8 +33,8 @@ async def add_content(
 ) -> Content:
     """Insert new content and set as only active (deactivate others)."""
     conn = get_db()
-    # Deactivate all current active
-    await conn.execute("UPDATE content SET status = 'active' WHERE status = 'active'")
+    # Deactivate all current active so only one is active
+    await conn.execute("UPDATE content SET status = 'deleted' WHERE status = 'active'")
     cur = await conn.execute(
         """INSERT INTO content (content_type, file_id, text, caption, status, created_by)
            VALUES (?, ?, ?, ?, 'active', ?)""",

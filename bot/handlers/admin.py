@@ -20,10 +20,8 @@ from bot.services import (
     content_service,
     schedule_service,
     settings_service,
+    leads_service,
 )
-from bot.database.models import ContentType
-from bot.keyboards.inline import history_delete_keyboard
-
 logger = logging.getLogger(__name__)
 router = Router(name="admin")
 
@@ -157,7 +155,6 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
         await callback.message.edit_text((callback.message.text or "") + "\n\n" + POST_DELETED)
     else:
         await callback.answer(POST_NOT_FOUND)
-    await callback.answer()
 
 
 # ---------- Banner ----------
