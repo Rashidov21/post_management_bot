@@ -76,3 +76,21 @@ LEAD_ALREADY_TAKEN = "Bu leadni boshqa admin allaqachon oldi."
 
 # Inline when bot posts in group
 CONTACT_ADMIN_BUTTON = "Admin bilan bog'lanish"
+
+# Reply / Inline button labels
+BTN_USER_WRITE = "📩 Xabar yuborish"
+BTN_HELP = "📋 Yordam"
+BTN_HISTORY = "📜 Postlar tarixi"
+BTN_POST_ON = "✅ Nashrni yoqish"
+BTN_POST_OFF = "❌ Nashrni o'chirish"
+BTN_SCHEDULE = "⏰ Nashr vaqtlari"
+BTN_BANNER = "🖼 Banner"
+BTN_TARGET_GROUP = "📢 Nashr guruhi"
+BTN_LEAD_GROUP = "👥 Lead guruhi"
+BTN_ADMINS = "👤 Adminlar"
+BTN_ADMIN_LIST = "Ro'yxat"
+BTN_ADMIN_ADD_HINT = "Qo'shish (reply)"
+BTN_ADMIN_REMOVE_HINT = "O'chirish (reply)"
+BTN_BACK = "◀️ Orqaga"
+BTN_REFRESH_HISTORY = "🔄 Yangilash"
+USER_WRITE_HINT = "Quyida xabaringizni yozing — adminlar ko'radi va javob beradi."

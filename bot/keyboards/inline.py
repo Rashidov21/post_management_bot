@@ -4,14 +4,20 @@ Inline keyboards for user and admin flows.
 """
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot.texts import CONTACT_ADMIN, TAKE_LEAD, CONTACT_ADMIN_BUTTON
+from bot.texts import (
+    CONTACT_ADMIN_BUTTON,
+    TAKE_LEAD,
+    BTN_ADMIN_LIST,
+    BTN_ADMIN_ADD_HINT,
+    BTN_ADMIN_REMOVE_HINT,
+    BTN_REFRESH_HISTORY,
+)
 
 
 def contact_admin_keyboard(post_id: int | None = None) -> InlineKeyboardMarkup:
     """Single button: Contact Admin. Optional post_id for lead source."""
-    payload = str(post_id) if post_id is not None else ""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=CONTACT_ADMIN_BUTTON, url=f"https://t.me/placeholder_bot")],
+        [InlineKeyboardButton(text=CONTACT_ADMIN_BUTTON, url="https://t.me/placeholder_bot")],
     ])
 
 
@@ -36,4 +42,22 @@ def history_delete_keyboard(content_id: int) -> InlineKeyboardMarkup:
     """Under history item: delete post button."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{content_id}")],
+    ])
+
+
+def history_refresh_keyboard() -> InlineKeyboardMarkup:
+    """Under history list: refresh button."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")],
+    ])
+
+
+def owner_admins_keyboard() -> InlineKeyboardMarkup:
+    """Owner: admin management inline menu."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_ADMIN_LIST, callback_data="admin_list")],
+        [
+            InlineKeyboardButton(text=BTN_ADMIN_ADD_HINT, callback_data="admin_help_add"),
+            InlineKeyboardButton(text=BTN_ADMIN_REMOVE_HINT, callback_data="admin_help_remove"),
+        ],
     ])

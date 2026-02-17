@@ -9,9 +9,10 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart, CommandObject
 
-from config import OWNER_ID, LEAD_RATE_LIMIT_PER_HOUR
-from bot.texts import WELCOME, LEAD_SENT, LEAD_RATE_LIMIT
+from config import LEAD_RATE_LIMIT_PER_HOUR
+from bot.texts import WELCOME, LEAD_SENT, LEAD_RATE_LIMIT, BTN_USER_WRITE, USER_WRITE_HINT
 from bot.services import user_service, leads_service, settings_service
+from bot.keyboards.reply import user_main_keyboard
 logger = logging.getLogger(__name__)
 router = Router(name="user")
 
@@ -33,7 +34,7 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
             _lead_source_by_user[message.from_user.id] = int(command.args.split("_", 1)[1])
         except (IndexError, ValueError):
             pass
-    await message.answer(WELCOME)
+    await message.answer(WELCOME, reply_markup=user_main_keyboard())
 
 
 @router.message(CommandStart())
@@ -45,7 +46,13 @@ async def cmd_start(message: Message) -> None:
         first_name=message.from_user.first_name,
         last_name=message.from_user.last_name,
     )
-    await message.answer(WELCOME)
+    await message.answer(WELCOME, reply_markup=user_main_keyboard())
+
+
+@router.message(F.chat.type == "private", F.text == BTN_USER_WRITE)
+async def btn_user_write(message: Message) -> None:
+    """User pressed 'Xabar yuborish' — show hint."""
+    await message.answer(USER_WRITE_HINT)
 
 
 @router.message(F.chat.type == "private", F.text)
