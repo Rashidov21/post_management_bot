@@ -15,12 +15,14 @@ from bot.texts import (
     POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, ADMIN_GROUP_SET, BANNER_SET,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
+    ADMIN_ONLY,
 )
 from bot.services import (
     content_service,
     schedule_service,
     settings_service,
     leads_service,
+    admin_service,
 )
 from bot.texts import (
     BTN_HELP,
@@ -210,6 +212,10 @@ async def admin_set_banner(message: Message) -> None:
 # ---------- Target group: admin sends /set_target_group in the group ----------
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_target_group")
 async def cmd_set_target_group_in_group(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    if uid != OWNER_ID and not await admin_service.is_admin(uid):
+        await message.answer(ADMIN_ONLY)
+        return
     gid = message.chat.id
     await settings_service.set_target_group_id(gid)
     await message.answer(TARGET_GROUP_SET)
@@ -242,6 +248,10 @@ async def btn_banner(message: Message) -> None:
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
 async def cmd_set_admin_group_in_group(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    if uid != OWNER_ID and not await admin_service.is_admin(uid):
+        await message.answer(ADMIN_ONLY)
+        return
     gid = message.chat.id
     await settings_service.set_admin_group_id(gid)
     await message.answer(ADMIN_GROUP_SET)

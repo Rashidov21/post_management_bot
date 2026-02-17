@@ -9,10 +9,11 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart, CommandObject
 
-from config import LEAD_RATE_LIMIT_PER_HOUR
+from config import LEAD_RATE_LIMIT_PER_HOUR, OWNER_ID
 from bot.texts import WELCOME, LEAD_SENT, LEAD_RATE_LIMIT, BTN_USER_WRITE, USER_WRITE_HINT
-from bot.services import user_service, leads_service, settings_service
-from bot.keyboards.reply import user_main_keyboard
+from bot.services import user_service, leads_service, settings_service, admin_service
+from bot.keyboards.reply import user_main_keyboard, admin_main_keyboard
+
 logger = logging.getLogger(__name__)
 router = Router(name="user")
 
@@ -34,7 +35,13 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
             _lead_source_by_user[message.from_user.id] = int(command.args.split("_", 1)[1])
         except (IndexError, ValueError):
             pass
-    await message.answer(WELCOME, reply_markup=user_main_keyboard())
+    uid = message.from_user.id if message.from_user else 0
+    is_owner = uid == OWNER_ID
+    is_admin_user = await admin_service.is_admin(uid)
+    if is_owner or is_admin_user:
+        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
+    else:
+        await message.answer(WELCOME, reply_markup=user_main_keyboard())
 
 
 @router.message(CommandStart())
@@ -46,7 +53,13 @@ async def cmd_start(message: Message) -> None:
         first_name=message.from_user.first_name,
         last_name=message.from_user.last_name,
     )
-    await message.answer(WELCOME, reply_markup=user_main_keyboard())
+    uid = message.from_user.id if message.from_user else 0
+    is_owner = uid == OWNER_ID
+    is_admin_user = await admin_service.is_admin(uid)
+    if is_owner or is_admin_user:
+        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
+    else:
+        await message.answer(WELCOME, reply_markup=user_main_keyboard())
 
 
 @router.message(F.chat.type == "private", F.text == BTN_USER_WRITE)
@@ -55,12 +68,15 @@ async def btn_user_write(message: Message) -> None:
     await message.answer(USER_WRITE_HINT)
 
 
-@router.message(F.chat.type == "private", F.text)
+@router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def private_message_as_lead(message: Message) -> None:
     """
-    Any text in private is forwarded to admin group as lead (with rate limit).
-    bot_username is injected by main from bot.get_me().
+    Non-command text in private is forwarded to admin group as lead (with rate limit).
+    Commands (starting with /) go to admin/owner routers. Owner/admin messages are not forwarded as leads.
     """
+    uid = message.from_user.id if message.from_user else 0
+    if uid == OWNER_ID or await admin_service.is_admin(uid):
+        return  # Let admin/owner use commands; their plain text is not treated as lead
     user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
