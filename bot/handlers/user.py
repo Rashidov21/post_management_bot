@@ -3,15 +3,17 @@
 User-facing handlers: /start, private messages as leads, rate limit.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
 from aiogram.types import Message
-from aiogram.filters import CommandStart, CommandObject
+from aiogram.filters import CommandStart, CommandObject, Filter
 
 from config import LEAD_RATE_LIMIT_PER_HOUR, OWNER_ID
 from bot.texts import (
     WELCOME,
+    WELCOME_USER_ONLY_VIA_GROUP,
+    USER_CONTACT_ONLY_VIA_GROUP,
     LEAD_SENT,
     LEAD_RATE_LIMIT,
     BTN_USER_WRITE,
@@ -49,6 +51,16 @@ _ADMIN_OWNER_BUTTONS = frozenset({
 _lead_source_by_user: dict[int, int] = {}
 
 
+class _NotAdminOrOwnerFilter(Filter):
+    """Let only non-admin, non-owner private text reach this handler; admin/owner text goes to admin router."""
+
+    async def __call__(self, message: Message) -> bool:
+        uid = message.from_user.id if message.from_user else 0
+        if uid == OWNER_ID:
+            return False
+        return not await admin_service.is_admin(uid)
+
+
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_deep(message: Message, command: CommandObject = None) -> None:
     """Start with optional ?start=post_123 for lead source."""
@@ -60,7 +72,9 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
     )
     if command and command.args and command.args.startswith("post_"):
         try:
-            _lead_source_by_user[message.from_user.id] = int(command.args.split("_", 1)[1])
+            cid = int(command.args.split("_", 1)[1])
+            if cid > 0:
+                _lead_source_by_user[message.from_user.id] = cid
         except (IndexError, ValueError):
             pass
     uid = message.from_user.id if message.from_user else 0
@@ -74,7 +88,7 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
-    """Regular /start in private."""
+    """Regular /start in private (guruh posti orqali emas)."""
     await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -87,7 +101,8 @@ async def cmd_start(message: Message) -> None:
     if is_owner or is_admin_user:
         await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
     else:
-        await message.answer(WELCOME, reply_markup=user_main_keyboard())
+        # Oddiy user to'g'ridan-to'g'ri kirdi — faqat guruh posti orqali bog'lanish kerak, tugma bermaymiz
+        await message.answer(WELCOME_USER_ONLY_VIA_GROUP)
 
 
 @router.message(F.chat.type == "private", F.text == BTN_USER_WRITE)
@@ -101,15 +116,20 @@ async def btn_user_write(message: Message) -> None:
     F.text,
     ~F.text.startswith("/"),
     F.text.filter(lambda t: t not in _ADMIN_OWNER_BUTTONS),
+    _NotAdminOrOwnerFilter(),
 )
 async def private_message_as_lead(message: Message) -> None:
     """
     Non-command text in private is forwarded to admin group as lead (with rate limit).
     Admin/owner reply button texts are excluded so they reach admin/owner routers.
     """
-    uid = message.from_user.id if message.from_user else 0
-    if uid == OWNER_ID or await admin_service.is_admin(uid):
-        return  # Admin/owner plain text is not treated as lead
+    source_content_id = _lead_source_by_user.pop(message.from_user.id, None)
+    if source_content_id == 0:
+        source_content_id = None
+    # Oddiy user faqat guruh posti orqali kirganda lead yuborishi mumkin
+    if source_content_id is None:
+        await message.answer(USER_CONTACT_ONLY_VIA_GROUP)
+        return
     user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -117,12 +137,11 @@ async def private_message_as_lead(message: Message) -> None:
         last_name=message.from_user.last_name,
     )
     # Rate limit
-    since = datetime.utcnow() - timedelta(hours=1)
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
     count = await leads_service.count_leads_from_user_since(message.from_user.id, since)
     if count >= LEAD_RATE_LIMIT_PER_HOUR:
         await message.answer(LEAD_RATE_LIMIT)
         return
-    source_content_id = _lead_source_by_user.pop(message.from_user.id, None)
     admin_group_id = await settings_service.get_admin_group_id()
     if not admin_group_id:
         await leads_service.create_lead(

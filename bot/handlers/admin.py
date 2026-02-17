@@ -120,7 +120,7 @@ async def admin_add_text_empty(message: Message) -> None:
 
 @router.message(F.chat.type == "private", F.text, F.text.startswith("/") == False)
 async def admin_text_ignored_for_content(message: Message) -> None:
-    """Non-command text from admin in private: treat as lead (handled in user router)."""
+    """Non-command text from admin in private: consumed here (user router does not run for admins)."""
     pass
 
 

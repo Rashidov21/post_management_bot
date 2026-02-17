@@ -42,7 +42,10 @@ async def post_active_content_to_group(bot: Bot, bot_username: str) -> None:
                 reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
             )
         elif content.content_type == "text" or content.text:
-            text = content.text or content.caption or ""
+            text = (content.text or content.caption or "").strip()
+            if not text:
+                logger.warning("Active content %s has no text/caption, skipping post", content.id)
+                return
             msg = await bot.send_message(
                 chat_id=target_group_id,
                 text=text,

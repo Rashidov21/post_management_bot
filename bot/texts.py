@@ -9,6 +9,16 @@ WELCOME = (
     "Reklama postlari guruhda vaqtida nashr etiladi. "
     "Savol yoki taklifingiz bo'lsa, quyidagi tugma orqali adminlar bilan bog'laning."
 )
+# Oddiy user guruh posti orqali kirmaganda (faqat /start)
+WELCOME_USER_ONLY_VIA_GROUP = (
+    "Assalomu alaykum!\n\n"
+    "Adminlar bilan bog'lanish uchun guruhdagi reklama postidagi "
+    "'Admin bilan bog'lanish' tugmasini bosing. Shundan keyin xabaringizni yuborishingiz mumkin."
+)
+USER_CONTACT_ONLY_VIA_GROUP = (
+    "Adminlar bilan bog'lanish uchun avval guruhdagi reklama postidagi "
+    "'Admin bilan bog'lanish' tugmasini bosing, keyin xabar yuboring."
+)
 LEAD_SENT = (
     "Sizning xabaringiz adminlarga yuborildi. Tez orada aloqaga chiqishadi."
 )
