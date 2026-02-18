@@ -13,6 +13,7 @@ from bot.texts import (
     BTN_REFRESH_HISTORY,
     BTN_ADD_TIME,
     BTN_POST_NOW,
+    BTN_HISTORY_BACK,
     BTN_INLINE_HISTORY,
     BTN_INLINE_SCHEDULE,
     BTN_INLINE_POST_ON,
@@ -53,6 +54,43 @@ def history_refresh_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")],
     ])
+
+
+def history_list_keyboard(posts: list) -> InlineKeyboardMarkup:
+    """Postlar ro'yxati: har bir post uchun 'Tanlash' (history_show_{id}), oxirida Yangilash."""
+    rows = []
+    for p in posts:
+        label = f"ID: {p.id} | {p.content_type} | {_short_date(p)}"
+        rows.append([InlineKeyboardButton(text=label, callback_data=f"history_show_{p.id}")])
+    rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _short_date(p) -> str:
+    """Short created_at for list button label (callback_data 64 byte limit)."""
+    ca = getattr(p, "created_at", None)
+    if ca is None:
+        return ""
+    if hasattr(ca, "strftime"):
+        return ca.strftime("%d.%m.%y")
+    return str(ca)[:10]
+
+
+def history_single_keyboard(post) -> InlineKeyboardMarkup:
+    """Bitta post uchun: O'chirish/Aktivlashtirish, Hozir joylash, Orqaga."""
+    rows = []
+    if getattr(post, "status", None) == "active":
+        rows.append([
+            InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{post.id}"),
+            InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{post.id}"),
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{post.id}"),
+            InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{post.id}"),
+        ])
+    rows.append([InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="history_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:

@@ -17,7 +17,7 @@ from bot.texts import (
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     BANNER_SET,
     GROUP_ID_SHOULD_BE_NEGATIVE,
-    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
+    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     SCHEDULE_ADD_TIME_HINT,
     SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
@@ -48,6 +48,8 @@ from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
     history_refresh_keyboard,
     history_actions_keyboard,
+    history_list_keyboard,
+    history_single_keyboard,
     schedule_keyboard,
     schedule_hour_keyboard,
     schedule_minute_keyboard,
@@ -239,10 +241,11 @@ def _format_posted_at(dt) -> str:
 
 
 async def _send_history(target):
-    """Send or edit history list with last posted time and refresh inline button."""
-    posts = await content_service.list_all_posts_for_history(limit=20)
+    """Send or edit history list (last 10), each post selectable; refresh button."""
+    posts = await content_service.list_all_posts_for_history(limit=10)
     if not posts:
         text = HISTORY_HEADER + "\n(bo'sh)"
+        kb = history_list_keyboard([])
     else:
         cids = [p.id for p in posts]
         last_posted = await content_service.get_last_posted_at_map(cids)
@@ -252,9 +255,9 @@ async def _send_history(target):
             posted_str = _format_posted_at(last_posted.get(p.id))
             lines.append(f"{status} ID: {p.id} | {p.content_type} | yaratilgan: {p.created_at} | oxirgi nashr: {posted_str}")
         text = "\n".join(lines)
+        kb = history_list_keyboard(posts)
     if len(text) > 4096:
         text = text[:4090] + "\n…"
-    kb = history_actions_keyboard(posts)
     if isinstance(target, Message):
         await target.answer(text, reply_markup=kb)
     else:
@@ -271,6 +274,36 @@ async def cmd_history(message: Message) -> None:
 async def cb_refresh_history(callback: CallbackQuery) -> None:
     await _send_history(callback)
     await callback.answer("Yangilandi.")
+
+
+@router.callback_query(F.data == "history_back")
+async def cb_history_back(callback: CallbackQuery) -> None:
+    await _send_history(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^history_show_(\d+)$")))
+async def cb_history_show(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^history_show_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    cid = int(match.group(1))
+    post = await content_service.get_content_by_id(cid)
+    if not post:
+        await callback.answer(POST_NOT_FOUND)
+        return
+    last_posted = await content_service.get_last_posted_at_map([cid])
+    posted_str = _format_posted_at(last_posted.get(cid))
+    created_str = str(post.created_at) if post.created_at else "—"
+    text = HISTORY_SINGLE_HEADER.format(
+        id=post.id,
+        content_type=post.content_type,
+        created_at=created_str,
+        posted=posted_str,
+    )
+    await callback.message.edit_text(text, reply_markup=history_single_keyboard(post))
+    await callback.answer()
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/delete_post\s+(\d+)$")))
@@ -296,7 +329,7 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
     ok = await content_service.delete_content(cid)
     if ok:
         await callback.answer(POST_DELETED)
-        await callback.message.edit_text((callback.message.text or "") + "\n\n" + POST_DELETED)
+        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 

@@ -91,6 +91,22 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
         await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
     else:
         await message.answer(WELCOME, reply_markup=user_main_keyboard())
+        await _send_admin_list_to_user(message)
+
+
+async def _send_admin_list_to_user(message: Message) -> None:
+    """Adminlar ro'yxatini foydalanuvchiga yuborish."""
+    from bot.texts import LIST_ADMINS_HEADER
+    admins = await admin_service.list_admins()
+    if not admins:
+        text = USER_ADMINS_LIST_HEADER + "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
+    else:
+        lines = [USER_ADMINS_LIST_HEADER, ""]
+        for a in admins:
+            uname = f"@{a.username}" if a.username else f"ID: {a.telegram_id}"
+            lines.append(f"• {uname}")
+        text = "\n".join(lines)
+    await message.answer(text)
 
 
 @router.message(CommandStart())
@@ -108,8 +124,8 @@ async def cmd_start(message: Message) -> None:
     if is_owner or is_admin_user:
         await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
     else:
-        # Oddiy user to'g'ridan-to'g'ri kirdi — faqat guruh posti orqali bog'lanish kerak, tugma bermaymiz
-        await message.answer(WELCOME_USER_ONLY_VIA_GROUP)
+        await message.answer(WELCOME_USER_ONLY_VIA_GROUP, reply_markup=user_main_keyboard())
+        await _send_admin_list_to_user(message)
 
 
 @router.message(F.chat.type == "private", F.text == BTN_USER_WRITE)
@@ -159,10 +175,6 @@ async def private_message_as_lead(message: Message) -> None:
     source_content_id = _lead_source_by_user.pop(message.from_user.id, None)
     if source_content_id == 0:
         source_content_id = None
-    # Oddiy user faqat guruh posti orqali kirganda lead yuborishi mumkin
-    if source_content_id is None:
-        await message.answer(USER_CONTACT_ONLY_VIA_GROUP)
-        return
     phone = _user_phone_for_lead.pop(message.from_user.id, None)
     user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,

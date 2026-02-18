@@ -6,18 +6,18 @@ Bot static messages in Uzbek.
 # Common
 WELCOME = (
     "Assalomu alaykum! Botimizga xush kelibsiz.\n\n"
-    "Reklama postlari guruhda vaqtida nashr etiladi. "
-    "Savol yoki taklifingiz bo'lsa, quyidagi tugma orqali adminlar bilan bog'laning."
+    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
+    "Quyidagi adminlar ro'yxati va tugmalar orqali xabar yuborishingiz mumkin."
 )
 # Oddiy user guruh posti orqali kirmaganda (faqat /start)
 WELCOME_USER_ONLY_VIA_GROUP = (
     "Assalomu alaykum!\n\n"
-    "Adminlar bilan bog'lanish uchun guruhdagi reklama postidagi "
-    "'Admin bilan bog'lanish' tugmasini bosing. Shundan keyin xabaringizni yuborishingiz mumkin."
+    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
+    "Quyidagi adminlar ro'yxati va tugmalar orqali xabar yuborishingiz mumkin."
 )
 USER_CONTACT_ONLY_VIA_GROUP = (
-    "Adminlar bilan bog'lanish uchun avval guruhdagi reklama postidagi "
-    "'Admin bilan bog'lanish' tugmasini bosing, keyin xabar yuboring."
+    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
+    "Xabaringizni yuboring — adminlar guruhiga yetkaziladi."
 )
 LEAD_SENT = (
     "Sizning xabaringiz adminlarga yuborildi. Tez orada aloqaga chiqishadi."
@@ -64,7 +64,9 @@ GROUP_ID_SHOULD_BE_NEGATIVE = "Guruh ID odatda manfiy bo'ladi (masalan -10012345
 BANNER_SET = "Asosiy banner rasm o'rnatildi."
 CONTENT_SAVED = "Kontent saqlandi va aktiv post sifatida belgilandi."
 NO_ACTIVE_CONTENT = "Aktiv post yo'q. Avval kontent yuboring (rasm, video yoki matn)."
-HISTORY_HEADER = "Postlar tarixi (oxirgi 20):"
+HISTORY_HEADER = "Postlar tarixi (oxirgi 10):"
+HISTORY_SINGLE_HEADER = "Post #{id} | {content_type} | yaratilgan: {created_at} | oxirgi nashr: {posted}"
+BTN_HISTORY_BACK = "◀️ Orqaga"
 POST_DELETED = "Post o'chirildi (endi nashr etilmaydi)."
 POST_ACTIVATED = "Post aktiv qilindi (endi guruhga nashr etiladi)."
 POST_NOT_FOUND = "Bunday post topilmadi yoki allaqachon o'chirilgan."
