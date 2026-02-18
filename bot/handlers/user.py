@@ -10,7 +10,7 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart, CommandObject, Filter
 
-from config import LEAD_RATE_LIMIT_PER_HOUR, OWNER_ID
+from config import LEAD_RATE_LIMIT_PER_HOUR, is_owner
 from bot.texts import (
     WELCOME,
     WELCOME_USER_ONLY_VIA_GROUP,
@@ -63,7 +63,7 @@ class _NotAdminOrOwnerFilter(Filter):
 
     async def __call__(self, message: Message) -> bool:
         uid = message.from_user.id if message.from_user else 0
-        if uid == OWNER_ID:
+        if is_owner(uid):
             return False
         return not await admin_service.is_admin(uid)
 
@@ -85,10 +85,10 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
         except (IndexError, ValueError):
             pass
     uid = message.from_user.id if message.from_user else 0
-    is_owner = uid == OWNER_ID
+    user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
-    if is_owner or is_admin_user:
-        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
+    if user_is_owner or is_admin_user:
+        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
     else:
         await message.answer(WELCOME, reply_markup=user_main_keyboard())
         await _send_admin_list_to_user(message)
@@ -119,10 +119,10 @@ async def cmd_start(message: Message) -> None:
         last_name=message.from_user.last_name,
     )
     uid = message.from_user.id if message.from_user else 0
-    is_owner = uid == OWNER_ID
+    user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
-    if is_owner or is_admin_user:
-        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=is_owner))
+    if user_is_owner or is_admin_user:
+        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
     else:
         await message.answer(WELCOME_USER_ONLY_VIA_GROUP, reply_markup=user_main_keyboard())
         await _send_admin_list_to_user(message)

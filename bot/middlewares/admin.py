@@ -7,7 +7,7 @@ from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject
 
-from config import OWNER_ID
+from config import is_owner
 from bot.services.admin_service import is_admin
 from bot.texts import ADMIN_ONLY, OWNER_ONLY
 
@@ -24,10 +24,10 @@ class AdminOnlyMiddleware(BaseMiddleware):
         if not isinstance(event, Message):
             return await handler(event, data)
         user_id = event.from_user.id if event.from_user else 0
-        is_owner = user_id == OWNER_ID
+        user_is_owner = is_owner(user_id)
         is_admin_user = await is_admin(user_id)
-        if is_owner or is_admin_user:
-            data["is_owner"] = is_owner
+        if user_is_owner or is_admin_user:
+            data["is_owner"] = user_is_owner
             data["is_admin"] = True
             return await handler(event, data)
         await event.answer(ADMIN_ONLY)
@@ -46,7 +46,7 @@ class OwnerOnlyMiddleware(BaseMiddleware):
         if not isinstance(event, Message):
             return await handler(event, data)
         user_id = event.from_user.id if event.from_user else 0
-        if user_id == OWNER_ID:
+        if is_owner(user_id):
             data["is_owner"] = True
             return await handler(event, data)
         await event.answer(OWNER_ONLY)

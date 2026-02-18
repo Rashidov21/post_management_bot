@@ -7,6 +7,7 @@ import re
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Filter
 
 from bot.texts import (
     HELP_HEADER,
@@ -24,6 +25,7 @@ from bot.texts import (
     POST_NOW_SUCCESS, POST_NOW_FAILED,
     BANNER_SEND_PHOTO, BANNER_PHOTO_RECEIVED, BOT_PIC_ONLY_BOTFATHER,
     ADMIN_REMOVED, ADMIN_NOT_FOUND,
+    ADMIN_ADD_PROMPT, ADMIN_ADD_INVALID_ID,
     ADMIN_ONLY,
 )
 from bot.services import (
@@ -59,7 +61,7 @@ from bot.keyboards.inline import (
     owner_admin_list_keyboard,
     admin_main_inline_keyboard,
 )
-from config import OWNER_ID
+from config import is_owner
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ _ADMIN_BUTTON_TEXTS = frozenset({
 
 
 def _admin_kb(message: Message):
-    return admin_main_keyboard(include_owner=message.from_user.id == OWNER_ID)
+    return admin_main_keyboard(include_owner=is_owner(message.from_user.id or 0))
 router = Router(name="admin")
 
 # Vaqt qo'shish: soat tanlang -> minut tanlang -> add_schedule
@@ -91,6 +93,15 @@ _target_group_pending: dict[int, int] = {}
 # Lead guruhi: ID kiritiladi, keyin inline tasdiq
 _admin_group_awaiting: set[int] = set()
 _admin_group_pending: dict[int, int] = {}
+# Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
+_admin_add_awaiting: set[int] = set()
+
+
+class _AdminAddAwaitingFilter(Filter):
+    """True when user is in admin-add flow (entering ID)."""
+
+    async def __call__(self, message: Message) -> bool:
+        return (message.from_user.id if message.from_user else 0) in _admin_add_awaiting
 
 
 def _help_text() -> str:
@@ -406,7 +417,7 @@ async def admin_set_banner(message: Message) -> None:
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_target_group")
 async def cmd_set_target_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if uid != OWNER_ID and not await admin_service.is_admin(uid):
+    if not is_owner(uid) and not await admin_service.is_admin(uid):
         await message.answer(ADMIN_ONLY)
         return
     gid = message.chat.id
@@ -434,6 +445,26 @@ async def cmd_set_target_group_private(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _target_group_awaiting.add(uid)
     await message.answer(TARGET_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
+
+
+@router.message(F.chat.type == "private", F.text, _AdminAddAwaitingFilter())
+async def admin_add_by_id_message(message: Message) -> None:
+    """Owner: Admin qo'shish — ID kiritilganda (Adminlar → Qo'shish → raqam)."""
+    uid = message.from_user.id if message.from_user else 0
+    text = (message.text or "").strip()
+    _admin_add_awaiting.discard(uid)
+    if not text.isdigit():
+        await message.answer(ADMIN_ADD_INVALID_ID, reply_markup=_admin_kb(message))
+        return
+    telegram_id = int(text)
+    if await admin_service.is_admin(telegram_id):
+        await message.answer(ADMIN_ALREADY, reply_markup=_admin_kb(message))
+        return
+    ok = await admin_service.add_admin(telegram_id, None)
+    await message.answer(
+        ADMIN_ADDED if ok else "Xatolik yuz berdi.",
+        reply_markup=_admin_kb(message),
+    )
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^-?\d+$")))
@@ -610,7 +641,7 @@ async def btn_banner(message: Message) -> None:
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
 async def cmd_set_admin_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if uid != OWNER_ID and not await admin_service.is_admin(uid):
+    if not is_owner(uid) and not await admin_service.is_admin(uid):
         await message.answer(ADMIN_ONLY)
         return
     gid = message.chat.id
@@ -654,7 +685,6 @@ async def cb_confirm_admin_group(callback: CallbackQuery) -> None:
 # ---------- Take lead callback (admin group) ----------
 @router.callback_query(F.data.regexp(re.compile(r"^take_lead_(\d+)$")))
 async def cb_take_lead(callback: CallbackQuery) -> None:
-    from config import OWNER_ID
     from bot.services import admin_service
     from bot.texts import LEAD_TAKEN, LEAD_ALREADY_TAKEN
 
@@ -664,7 +694,7 @@ async def cb_take_lead(callback: CallbackQuery) -> None:
         return
     lead_id = int(match.group(1))
     admin_telegram_id = callback.from_user.id if callback.from_user else 0
-    is_admin_user = admin_telegram_id == OWNER_ID or await admin_service.is_admin(admin_telegram_id)
+    is_admin_user = is_owner(admin_telegram_id) or await admin_service.is_admin(admin_telegram_id)
     if not is_admin_user:
         await callback.answer("Faqat adminlar leadni olishi mumkin.")
         return
@@ -696,7 +726,7 @@ def _format_admin_list_message(admins: list) -> tuple[str, object]:
 
 @router.callback_query(F.data == "admin_list")
 async def cb_admin_list(callback: CallbackQuery) -> None:
-    if callback.from_user.id != OWNER_ID:
+    if not is_owner(callback.from_user.id or 0):
         await callback.answer("Faqat egasi.", show_alert=True)
         return
     admins = await admin_service.list_admins()
@@ -707,7 +737,7 @@ async def cb_admin_list(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.regexp(re.compile(r"^remove_admin_(\d+)$")))
 async def cb_remove_admin(callback: CallbackQuery) -> None:
-    if callback.from_user.id != OWNER_ID:
+    if not is_owner(callback.from_user.id or 0):
         await callback.answer("Faqat egasi.", show_alert=True)
         return
     match = callback.data and re.match(r"^remove_admin_(\d+)$", callback.data)
@@ -727,22 +757,21 @@ async def cb_remove_admin(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "admin_help_add")
 async def cb_admin_help_add(callback: CallbackQuery) -> None:
-    from config import OWNER_ID
-    from bot.texts import REPLY_TO_ADD_ADMIN
+    from bot.texts import ADMIN_ADD_PROMPT
 
-    if callback.from_user.id != OWNER_ID:
+    if not is_owner(callback.from_user.id or 0):
         await callback.answer("Faqat egasi.", show_alert=True)
         return
-    await callback.message.edit_text(REPLY_TO_ADD_ADMIN)
+    _admin_add_awaiting.add(callback.from_user.id)
+    await callback.message.edit_text(ADMIN_ADD_PROMPT)
     await callback.answer()
 
 
 @router.callback_query(F.data == "admin_help_remove")
 async def cb_admin_help_remove(callback: CallbackQuery) -> None:
-    from config import OWNER_ID
     from bot.texts import REPLY_TO_REMOVE_ADMIN
 
-    if callback.from_user.id != OWNER_ID:
+    if not is_owner(callback.from_user.id or 0):
         await callback.answer("Faqat egasi.", show_alert=True)
         return
     await callback.message.edit_text(REPLY_TO_REMOVE_ADMIN)

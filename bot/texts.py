@@ -80,6 +80,11 @@ ADMIN_REMOVED = "Admin olib tashlandi."
 ADMIN_ALREADY = "Bu foydalanuvchi allaqachon admin."
 ADMIN_NOT_FOUND = "Admin topilmadi."
 REPLY_TO_ADD_ADMIN = "Admin qo'shish uchun foydalanuvchi xabariga reply qiling va /add_admin yozing."
+ADMIN_ADD_PROMPT = (
+    "Yangi adminning Telegram ID sini kiriting (faqat raqam, masalan 123456789). "
+    "ID ni @userinfobot orqali olish mumkin."
+)
+ADMIN_ADD_INVALID_ID = "Faqat raqam (Telegram ID) kiriting. Masalan: 123456789"
 REPLY_TO_REMOVE_ADMIN = "Adminni olib tashlash uchun uning xabariga reply qiling va /remove_admin yozing."
 OWNER_ONLY = "Bu buyruqni faqat bot egasi ishlata oladi."
 ADMIN_ONLY = "Bu buyruqni faqat adminlar ishlata oladi."

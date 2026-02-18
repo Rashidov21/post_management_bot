@@ -20,7 +20,7 @@ from bot.services import admin_service
 from bot.texts import BTN_ADMINS
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import owner_admins_keyboard
-from config import OWNER_ID
+from config import is_owner
 
 logger = logging.getLogger(__name__)
 router = Router(name="owner")
@@ -33,7 +33,7 @@ def _owner_kb(message: Message):
 @router.message(F.chat.type == "private", F.text == BTN_ADMINS)
 async def btn_admins(message: Message) -> None:
     """Owner: show admin management inline menu."""
-    if message.from_user.id != OWNER_ID:
+    if not is_owner(message.from_user.id):
         return
     await message.answer("Adminlar boshqaruvi:", reply_markup=owner_admins_keyboard())
 

@@ -12,8 +12,23 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 # Bot token (required)
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 
-# Owner Telegram user ID (super admin, required)
-OWNER_ID: int = int(os.getenv("OWNER_ID", "0"))
+# Owner Telegram user ID(s). One ID or comma-separated: OWNER_ID=123 or OWNER_IDS=123,456
+_owner_ids_str: str = os.getenv("OWNER_IDS", "").strip()
+if _owner_ids_str:
+    OWNER_IDS: tuple[int, ...] = tuple(
+        int(x.strip()) for x in _owner_ids_str.split(",") if x.strip()
+    )
+else:
+    _single: int = int(os.getenv("OWNER_ID", "0"))
+    OWNER_IDS = (_single,) if _single else ()
+
+# Backward compatibility: first owner as OWNER_ID
+OWNER_ID: int = OWNER_IDS[0] if OWNER_IDS else 0
+
+
+def is_owner(user_id: int) -> bool:
+    """True if user_id is one of the configured owners."""
+    return user_id in OWNER_IDS
 
 # SQLite database path
 DATABASE_PATH: str = os.getenv("DATABASE_PATH", "data/bot.db")
@@ -39,5 +54,7 @@ def validate_config() -> None:
     """Validate required config. Raises ValueError if invalid."""
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is required")
-    if not OWNER_ID:
-        raise ValueError("OWNER_ID is required (Telegram user ID of owner)")
+    if not OWNER_IDS:
+        raise ValueError(
+            "OWNER_ID or OWNER_IDS is required (Telegram user ID of owner(s), comma-separated for multiple)"
+        )
