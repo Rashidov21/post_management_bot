@@ -592,18 +592,25 @@ async def cmd_set_target_group_private(message: Message) -> None:
 
 @router.message(F.chat.type == "private", F.text, _AdminAddAwaitingFilter())
 async def admin_add_by_id_message(message: Message) -> None:
-    """Owner: Admin qo'shish — ID kiritilganda (Adminlar → Qo'shish → raqam)."""
+    """Owner: Admin qo'shish — ID va ixtiyoriy ism/familiya (masalan: 123456789 John Doe)."""
     uid = message.from_user.id if message.from_user else 0
-    text = (message.text or "").strip()
+    raw = (message.text or "").strip()
     _admin_add_awaiting.discard(uid)
-    if not text.isdigit():
+    parts = raw.split()
+    if not parts or not parts[0].isdigit():
         await message.answer(ADMIN_ADD_INVALID_ID, reply_markup=_admin_kb(message))
         return
-    telegram_id = int(text)
+    telegram_id = int(parts[0])
+    first_name = None
+    last_name = None
+    if len(parts) >= 2:
+        first_name = parts[1]
+    if len(parts) >= 3:
+        last_name = " ".join(parts[2:])
     if await admin_service.is_admin(telegram_id):
         await message.answer(ADMIN_ALREADY, reply_markup=_admin_kb(message))
         return
-    ok = await admin_service.add_admin(telegram_id, None)
+    ok = await admin_service.add_admin(telegram_id, None, first_name=first_name, last_name=last_name)
     await message.answer(
         ADMIN_ADDED if ok else "Xatolik yuz berdi.",
         reply_markup=_admin_kb(message),

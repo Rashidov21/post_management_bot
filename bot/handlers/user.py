@@ -99,20 +99,20 @@ async def _send_admin_list_to_user(message: Message) -> None:
     from bot.texts import LIST_ADMINS_HEADER
     admins = await admin_service.list_admins()
     kb_rows = []
-    if admins:
-        for a in admins:
-            uname = getattr(a, "username", None)
-            label = f"{uname}" if uname else f"ID: {a.telegram_id}"
-            if uname:
-                kb_rows.append([InlineKeyboardButton(text=label, url=f"https://t.me/{uname}")])
-    if kb_rows:
-        kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
-    else:
-        kb = None
-    text = USER_ADMINS_LIST_HEADER
+    text_lines = [USER_ADMINS_LIST_HEADER]
     if not admins:
-        text += "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
-    await message.answer(text, reply_markup=kb)
+        text_lines.append("")
+        text_lines.append("(Adminlar ro'yxati hozircha bo'sh.)")
+    else:
+        for idx, a in enumerate(admins, start=1):
+            name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])).strip()
+            uname = getattr(a, "username", None)
+            label_name = name or (f"@{uname}" if uname else f"ID: {a.telegram_id}")
+            text_lines.append(f"Admin {idx} — {label_name}")
+            if uname:
+                kb_rows.append([InlineKeyboardButton(text=f"Admin {idx} — {label_name}", url=f"https://t.me/{uname}")])
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows) if kb_rows else None
+    await message.answer("\n".join(text_lines), reply_markup=kb)
 
 
 @router.message(CommandStart())
