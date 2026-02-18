@@ -592,7 +592,7 @@ async def cmd_set_target_group_private(message: Message) -> None:
 
 @router.message(F.chat.type == "private", F.text, _AdminAddAwaitingFilter())
 async def admin_add_by_id_message(message: Message) -> None:
-    """Owner: Admin qo'shish — ID va ixtiyoriy ism/familiya (masalan: 123456789 John Doe)."""
+    """Owner: Admin qo'shish — ID va ixtiyoriy username/ism/familiya (masalan: 123456789 @user John Doe)."""
     uid = message.from_user.id if message.from_user else 0
     raw = (message.text or "").strip()
     _admin_add_awaiting.discard(uid)
@@ -601,16 +601,30 @@ async def admin_add_by_id_message(message: Message) -> None:
         await message.answer(ADMIN_ADD_INVALID_ID, reply_markup=_admin_kb(message))
         return
     telegram_id = int(parts[0])
+    username = None
     first_name = None
     last_name = None
-    if len(parts) >= 2:
-        first_name = parts[1]
-    if len(parts) >= 3:
-        last_name = " ".join(parts[2:])
+    # Optional username as second token (starts with @ or looks like username)
+    idx = 1
+    if len(parts) > 1 and not parts[1].replace(".", "").isdigit():
+        if parts[1].startswith("@"):
+            username = parts[1].lstrip("@")
+        else:
+            # Could be username or first name; if next token exists and starts with @, treat this as first name
+            username = parts[1] if len(parts) == 2 or parts[2].startswith("@") else None
+            if username is None:
+                first_name = parts[1]
+        idx = 2
+    # Remaining tokens as name
+    if first_name is None and len(parts) > idx:
+        first_name = parts[idx]
+        idx += 1
+    if len(parts) > idx:
+        last_name = " ".join(parts[idx:])
     if await admin_service.is_admin(telegram_id):
         await message.answer(ADMIN_ALREADY, reply_markup=_admin_kb(message))
         return
-    ok = await admin_service.add_admin(telegram_id, None, first_name=first_name, last_name=last_name)
+    ok = await admin_service.add_admin(telegram_id, username, first_name=first_name, last_name=last_name)
     await message.answer(
         ADMIN_ADDED if ok else "Xatolik yuz berdi.",
         reply_markup=_admin_kb(message),
