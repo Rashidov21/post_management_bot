@@ -12,10 +12,15 @@ from bot.texts import (
     BTN_ADMIN_REMOVE_HINT,
     BTN_REFRESH_HISTORY,
     BTN_ADD_TIME,
+    BTN_POST_NOW,
     BTN_INLINE_HISTORY,
     BTN_INLINE_SCHEDULE,
     BTN_INLINE_POST_ON,
     BTN_INLINE_POST_OFF,
+    BTN_SAVE_AS_BANNER,
+    BTN_SET_BOT_PIC,
+    BTN_CONFIRM_TARGET_GROUP,
+    BTN_CONFIRM_ADMIN_GROUP,
 )
 
 
@@ -51,13 +56,19 @@ def history_refresh_keyboard() -> InlineKeyboardMarkup:
 
 
 def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
-    """Per-post actions: O'chirish (active) or Aktivlashtirish (deleted), plus refresh."""
+    """Per-post actions: O'chirish/Aktivlashtirish, Hozir joylash; plus refresh."""
     rows = []
     for p in posts:
         if getattr(p, "status", None) == "active":
-            rows.append([InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{p.id}")])
+            rows.append([
+                InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{p.id}"),
+                InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{p.id}"),
+            ])
         else:
-            rows.append([InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}")])
+            rows.append([
+                InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}"),
+                InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{p.id}"),
+            ])
     rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -73,6 +84,47 @@ def schedule_keyboard(schedules: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def schedule_hour_keyboard() -> InlineKeyboardMarkup:
+    """Soat tanlash: 00–23, callback sch_h_0 … sch_h_23 (4 qator x 6 tugma)."""
+    rows = []
+    for h in range(24):
+        btn = InlineKeyboardButton(text=f"{h:02d}", callback_data=f"sch_h_{h}")
+        if not rows or len(rows[-1]) >= 6:
+            rows.append([btn])
+        else:
+            rows[-1].append(btn)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def schedule_minute_keyboard() -> InlineKeyboardMarkup:
+    """Minut tanlash: 00, 15, 30, 45 — callback sch_m_00, sch_m_15, …"""
+    minutes = ("00", "15", "30", "45")
+    row = [InlineKeyboardButton(text=m, callback_data=f"sch_m_{m}") for m in minutes]
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
+def banner_confirm_keyboard() -> InlineKeyboardMarkup:
+    """After photo received: Banner sifatida saqlash, Rasmni bot pic qilish."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_SAVE_AS_BANNER, callback_data="confirm_banner")],
+        [InlineKeyboardButton(text=BTN_SET_BOT_PIC, callback_data="confirm_bot_pic")],
+    ])
+
+
+def confirm_target_group_keyboard() -> InlineKeyboardMarkup:
+    """After target group ID entered: Guruhni belgilash."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_CONFIRM_TARGET_GROUP, callback_data="confirm_target_group")],
+    ])
+
+
+def confirm_admin_group_keyboard() -> InlineKeyboardMarkup:
+    """After lead group ID entered: Guruhni belgilash."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_CONFIRM_ADMIN_GROUP, callback_data="confirm_admin_group")],
+    ])
+
+
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
     """Admin/Owner: asosiy amallar — Postlar tarixi, Nashr vaqtlari, Yoqish/O'chirish."""
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -85,6 +137,17 @@ def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=BTN_INLINE_POST_OFF, callback_data="cb_post_off"),
         ],
     ])
+
+
+def owner_admin_list_keyboard(admins: list) -> InlineKeyboardMarkup:
+    """Owner: admin ro'yxati — har bir admin uchun O'chirish tugmasi (callback remove_admin_{telegram_id})."""
+    rows = []
+    for a in admins:
+        tid = getattr(a, "telegram_id", a) if hasattr(a, "telegram_id") else a
+        rows.append([
+            InlineKeyboardButton(text="O'chirish", callback_data=f"remove_admin_{tid}"),
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def owner_admins_keyboard() -> InlineKeyboardMarkup:

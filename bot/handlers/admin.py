@@ -13,11 +13,17 @@ from bot.texts import (
     CMD_START, CMD_HELP, CMD_SET_TIMES, CMD_POST_ON, CMD_POST_OFF,
     CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_SET_BANNER, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
     CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
-    POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, ADMIN_GROUP_SET, BANNER_SET,
+    POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
+    ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
+    BANNER_SET,
     GROUP_ID_SHOULD_BE_NEGATIVE,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     SCHEDULE_ADD_TIME_HINT,
+    SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
+    POST_NOW_SUCCESS, POST_NOW_FAILED,
+    BANNER_SEND_PHOTO, BANNER_PHOTO_RECEIVED, BOT_PIC_ONLY_BOTFATHER,
+    ADMIN_REMOVED, ADMIN_NOT_FOUND,
     ADMIN_ONLY,
 )
 from bot.services import (
@@ -27,6 +33,7 @@ from bot.services import (
     leads_service,
     admin_service,
 )
+from bot.scheduler import posting as posting_module
 from bot.texts import (
     BTN_HELP,
     BTN_HISTORY,
@@ -42,6 +49,12 @@ from bot.keyboards.inline import (
     history_refresh_keyboard,
     history_actions_keyboard,
     schedule_keyboard,
+    schedule_hour_keyboard,
+    schedule_minute_keyboard,
+    banner_confirm_keyboard,
+    confirm_target_group_keyboard,
+    confirm_admin_group_keyboard,
+    owner_admin_list_keyboard,
     admin_main_inline_keyboard,
 )
 from config import OWNER_ID
@@ -64,6 +77,18 @@ _ADMIN_BUTTON_TEXTS = frozenset({
 def _admin_kb(message: Message):
     return admin_main_keyboard(include_owner=message.from_user.id == OWNER_ID)
 router = Router(name="admin")
+
+# Vaqt qo'shish: soat tanlang -> minut tanlang -> add_schedule
+_schedule_pending: dict[int, dict] = {}
+# Banner: rasm kutiladi, keyin inline Banner / Bot pic
+_banner_waiting_photo: set[int] = set()
+_banner_pending_file: dict[int, str] = {}
+# Nashr guruhi: ID kiritiladi, keyin inline tasdiq
+_target_group_awaiting: set[int] = set()
+_target_group_pending: dict[int, int] = {}
+# Lead guruhi: ID kiritiladi, keyin inline tasdiq
+_admin_group_awaiting: set[int] = set()
+_admin_group_pending: dict[int, int] = {}
 
 
 def _help_text() -> str:
@@ -96,10 +121,17 @@ async def cmd_help(message: Message) -> None:
 # ---------- Content: photo, video, text ----------
 @router.message(F.chat.type == "private", F.photo)
 async def admin_save_photo(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    if uid in _banner_waiting_photo:
+        _banner_waiting_photo.discard(uid)
+        photo = message.photo[-1]
+        _banner_pending_file[uid] = photo.file_id
+        await message.answer(BANNER_PHOTO_RECEIVED, reply_markup=banner_confirm_keyboard())
+        return
     photo = message.photo[-1]
     await content_service.add_content(
         content_type="photo",
-        created_by=message.from_user.id,
+        created_by=uid,
         file_id=photo.file_id,
         caption=message.caption,
     )
@@ -312,6 +344,23 @@ async def cb_activate_post(callback: CallbackQuery) -> None:
         await callback.answer(POST_NOT_FOUND)
 
 
+@router.callback_query(F.data.regexp(re.compile(r"^post_now_(\d+)$")))
+async def cb_post_now(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^post_now_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    content_id = int(match.group(1))
+    me = await callback.bot.get_me()
+    bot_username = me.username or ""
+    ok = await posting_module.post_content_by_id_to_group(callback.bot, bot_username, content_id)
+    if ok:
+        await callback.answer(POST_NOW_SUCCESS)
+        await _send_history(callback)
+    else:
+        await callback.answer(POST_NOW_FAILED)
+
+
 # ---------- Banner ----------
 @router.message(F.chat.type == "private", F.photo, F.caption.regexp(re.compile(r"^/set_banner", re.I)))
 async def admin_set_banner(message: Message) -> None:
@@ -349,10 +398,35 @@ async def cmd_set_target_group_id_private(message: Message) -> None:
 @router.message(F.chat.type == "private", F.text == "/set_target_group")
 @router.message(F.chat.type == "private", F.text == BTN_TARGET_GROUP)
 async def cmd_set_target_group_private(message: Message) -> None:
-    await message.answer(
-        "Nashr guruhida /set_target_group buyrug'ini yuboring yoki guruh ID bilan: /set_target_group -1001234567890",
-        reply_markup=_admin_kb(message),
-    )
+    uid = message.from_user.id if message.from_user else 0
+    _target_group_awaiting.add(uid)
+    await message.answer(TARGET_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
+
+
+@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^-?\d+$")))
+async def admin_text_group_id(message: Message) -> None:
+    """Accept target or lead group ID when user is in corresponding awaiting set."""
+    uid = message.from_user.id if message.from_user else 0
+    gid = int(message.text.strip())
+    if uid in _target_group_awaiting:
+        _target_group_awaiting.discard(uid)
+        _target_group_pending[uid] = gid
+        await message.answer(TARGET_GROUP_ID_RECEIVED, reply_markup=confirm_target_group_keyboard())
+    elif uid in _admin_group_awaiting:
+        _admin_group_awaiting.discard(uid)
+        _admin_group_pending[uid] = gid
+        await message.answer(ADMIN_GROUP_ID_RECEIVED, reply_markup=confirm_admin_group_keyboard())
+
+
+@router.callback_query(F.data == "confirm_target_group")
+async def cb_confirm_target_group(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    gid = _target_group_pending.pop(uid, None)
+    if gid is not None:
+        await settings_service.set_target_group_id(gid)
+        await callback.answer(TARGET_GROUP_SET)
+    else:
+        await callback.answer()
 
 
 @router.message(F.chat.type == "private", F.text == BTN_SCHEDULE)
@@ -397,7 +471,43 @@ async def cb_del_time(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "add_time")
 async def cb_add_time(callback: CallbackQuery) -> None:
-    await callback.answer(SCHEDULE_ADD_TIME_HINT, show_alert=True)
+    await callback.message.edit_text(SCHEDULE_PICK_HOUR, reply_markup=schedule_hour_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^sch_h_(\d+)$")))
+async def cb_schedule_hour(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^sch_h_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    hour = int(match.group(1))
+    uid = callback.from_user.id if callback.from_user else 0
+    _schedule_pending[uid] = {"hour": hour}
+    await callback.message.edit_text(SCHEDULE_PICK_MINUTE, reply_markup=schedule_minute_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^sch_m_(\d{2})$")))
+async def cb_schedule_minute(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^sch_m_(\d{2})$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    minute_str = match.group(1)
+    uid = callback.from_user.id if callback.from_user else 0
+    pending = _schedule_pending.pop(uid, None)
+    if not pending or "hour" not in pending:
+        await callback.answer(SCHEDULE_INVALID)
+        return
+    hour = pending["hour"]
+    time_str = f"{hour:02d}:{minute_str}"
+    ok = await schedule_service.add_schedule(time_str)
+    if ok:
+        await callback.answer(SCHEDULE_TIME_ADDED)
+        await _send_schedule_message(callback)
+    else:
+        await callback.answer(SCHEDULE_INVALID)
 
 
 @router.callback_query(F.data == "cb_post_on")
@@ -424,12 +534,44 @@ async def cb_inline_schedule(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "confirm_banner")
+async def cb_confirm_banner(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    file_id = _banner_pending_file.pop(uid, None)
+    if file_id:
+        await settings_service.set_banner_file_id(file_id)
+        await callback.answer(BANNER_SET)
+    else:
+        await callback.answer()
+
+
+@router.callback_query(F.data == "confirm_bot_pic")
+async def cb_confirm_bot_pic(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    file_id = _banner_pending_file.pop(uid, None)
+    if not file_id:
+        await callback.answer()
+        return
+    try:
+        # aiogram 3.25+ has set_my_profile_photo; 3.22 may not
+        method = getattr(callback.bot, "set_my_profile_photo", None)
+        if method:
+            result = await method(photo=file_id)
+            if result:
+                await callback.answer("Bot rasmi yangilandi.")
+            else:
+                await callback.answer(BOT_PIC_ONLY_BOTFATHER)
+        else:
+            await callback.answer(BOT_PIC_ONLY_BOTFATHER)
+    except Exception:
+        await callback.answer(BOT_PIC_ONLY_BOTFATHER)
+
+
 @router.message(F.chat.type == "private", F.text == BTN_BANNER)
 async def btn_banner(message: Message) -> None:
-    await message.answer(
-        "Banner o'rnatish: rasm yuboring, captionda /set_banner yozing.",
-        reply_markup=_admin_kb(message),
-    )
+    uid = message.from_user.id if message.from_user else 0
+    _banner_waiting_photo.add(uid)
+    await message.answer(BANNER_SEND_PHOTO, reply_markup=_admin_kb(message))
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
@@ -460,10 +602,20 @@ async def cmd_set_admin_group_id_private(message: Message) -> None:
 @router.message(F.chat.type == "private", F.text == "/set_admin_group")
 @router.message(F.chat.type == "private", F.text == BTN_LEAD_GROUP)
 async def cmd_set_admin_group_private(message: Message) -> None:
-    await message.answer(
-        "Leadlar yuboriladigan guruhda /set_admin_group buyrug'ini yuboring yoki guruh ID: /set_admin_group -1001234567890",
-        reply_markup=_admin_kb(message),
-    )
+    uid = message.from_user.id if message.from_user else 0
+    _admin_group_awaiting.add(uid)
+    await message.answer(ADMIN_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
+
+
+@router.callback_query(F.data == "confirm_admin_group")
+async def cb_confirm_admin_group(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    gid = _admin_group_pending.pop(uid, None)
+    if gid is not None:
+        await settings_service.set_admin_group_id(gid)
+        await callback.answer(ADMIN_GROUP_SET)
+    else:
+        await callback.answer()
 
 
 # ---------- Take lead callback (admin group) ----------
@@ -496,26 +648,48 @@ async def cb_take_lead(callback: CallbackQuery) -> None:
 
 
 # ---------- Owner inline: admin list / help (only owner can use) ----------
+def _format_admin_list_message(admins: list) -> tuple[str, object]:
+    """Return (text, reply_markup) for admin list."""
+    from bot.texts import LIST_ADMINS_HEADER
+    if not admins:
+        return LIST_ADMINS_HEADER + "\n(bo'sh)", owner_admin_list_keyboard([])
+    lines = [LIST_ADMINS_HEADER]
+    for a in admins:
+        uname = f"@{a.username}" if getattr(a, "username", None) else ""
+        lines.append(f"- {a.telegram_id} {uname}")
+    text = "\n".join(lines)
+    return text, owner_admin_list_keyboard(admins)
+
+
 @router.callback_query(F.data == "admin_list")
 async def cb_admin_list(callback: CallbackQuery) -> None:
-    from config import OWNER_ID
-    from bot.services import admin_service
-    from bot.texts import LIST_ADMINS_HEADER
-
     if callback.from_user.id != OWNER_ID:
         await callback.answer("Faqat egasi.", show_alert=True)
         return
     admins = await admin_service.list_admins()
-    if not admins:
-        text = LIST_ADMINS_HEADER + "\n(bo'sh)"
-    else:
-        lines = [LIST_ADMINS_HEADER]
-        for a in admins:
-            uname = f"@{a.username}" if a.username else ""
-            lines.append(f"- {a.telegram_id} {uname}")
-        text = "\n".join(lines)
-    await callback.message.edit_text(text)
+    text, kb = _format_admin_list_message(admins)
+    await callback.message.edit_text(text, reply_markup=kb)
     await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^remove_admin_(\d+)$")))
+async def cb_remove_admin(callback: CallbackQuery) -> None:
+    if callback.from_user.id != OWNER_ID:
+        await callback.answer("Faqat egasi.", show_alert=True)
+        return
+    match = callback.data and re.match(r"^remove_admin_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    telegram_id = int(match.group(1))
+    ok = await admin_service.remove_admin(telegram_id)
+    if ok:
+        admins = await admin_service.list_admins()
+        text, kb = _format_admin_list_message(admins)
+        await callback.message.edit_text(text, reply_markup=kb)
+        await callback.answer(ADMIN_REMOVED)
+    else:
+        await callback.answer(ADMIN_NOT_FOUND)
 
 
 @router.callback_query(F.data == "admin_help_add")

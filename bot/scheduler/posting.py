@@ -59,3 +59,49 @@ async def post_active_content_to_group(bot: Bot, bot_username: str) -> None:
     except Exception as e:
         logger.exception("Failed to post content to group: %s", e)
         raise
+
+
+async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: int) -> bool:
+    """
+    Post a specific content (by id) to target group immediately. Does not change active content.
+    Returns True if posted, False if no group, no content, or content has no media/text.
+    """
+    target_group_id = await settings_service.get_target_group_id()
+    if not target_group_id:
+        logger.warning("Target group not set, skipping post now")
+        return False
+    content = await content_service.get_content_by_id(content_id)
+    if not content:
+        return False
+    try:
+        if content.content_type == "photo" and content.file_id:
+            msg = await bot.send_photo(
+                chat_id=target_group_id,
+                photo=content.file_id,
+                caption=content.caption or "",
+                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+            )
+        elif content.content_type == "video" and content.file_id:
+            msg = await bot.send_video(
+                chat_id=target_group_id,
+                video=content.file_id,
+                caption=content.caption or "",
+                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+            )
+        elif content.content_type == "text" or content.text:
+            text = (content.text or content.caption or "").strip()
+            if not text:
+                return False
+            msg = await bot.send_message(
+                chat_id=target_group_id,
+                text=text,
+                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+            )
+        else:
+            return False
+        await content_service.log_post(content.id, target_group_id, msg.message_id)
+        logger.info("Posted content %s to group %s (post now)", content.id, target_group_id)
+        return True
+    except Exception as e:
+        logger.exception("Failed to post content %s to group: %s", content_id, e)
+        return False
