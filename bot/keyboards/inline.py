@@ -18,8 +18,6 @@ from bot.texts import (
     BTN_INLINE_SCHEDULE,
     BTN_INLINE_POST_ON,
     BTN_INLINE_POST_OFF,
-    BTN_SAVE_AS_BANNER,
-    BTN_SET_BOT_PIC,
     BTN_CONFIRM_TARGET_GROUP,
     BTN_CONFIRM_ADMIN_GROUP,
     BTN_POST_CONFIRM,
@@ -177,14 +175,6 @@ def schedule_minute_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
-def banner_confirm_keyboard() -> InlineKeyboardMarkup:
-    """After photo received: Banner sifatida saqlash, Rasmni bot pic qilish."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=BTN_SAVE_AS_BANNER, callback_data="confirm_banner")],
-        [InlineKeyboardButton(text=BTN_SET_BOT_PIC, callback_data="confirm_bot_pic")],
-    ])
-
-
 def confirm_target_group_keyboard() -> InlineKeyboardMarkup:
     """After target group ID entered: Guruhni belgilash."""
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -224,13 +214,18 @@ def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
 
 
 def owner_admin_list_keyboard(admins: list) -> InlineKeyboardMarkup:
-    """Owner: admin ro'yxati — har bir admin uchun O'chirish tugmasi (callback remove_admin_{telegram_id})."""
+    """
+    Owner: admin ro'yxati — har bir admin uchun Chat (username bo'lsa) va O'chirish.
+    """
     rows = []
     for a in admins:
         tid = getattr(a, "telegram_id", a) if hasattr(a, "telegram_id") else a
-        rows.append([
-            InlineKeyboardButton(text="O'chirish", callback_data=f"remove_admin_{tid}"),
-        ])
+        uname = getattr(a, "username", None)
+        buttons = []
+        if uname:
+            buttons.append(InlineKeyboardButton(text="Chat", url=f"https://t.me/{uname}"))
+        buttons.append(InlineKeyboardButton(text="O'chirish", callback_data=f"remove_admin_{tid}"))
+        rows.append(buttons)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

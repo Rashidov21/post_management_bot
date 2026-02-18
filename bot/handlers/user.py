@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart, CommandObject, Filter
 
 from config import LEAD_RATE_LIMIT_PER_HOUR, is_owner
@@ -28,7 +28,6 @@ from bot.texts import (
     BTN_POST_OFF,
     BTN_ADD_POST,
     BTN_SCHEDULE,
-    BTN_BANNER,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
     BTN_ADMINS,
@@ -47,7 +46,6 @@ _ADMIN_OWNER_BUTTONS = frozenset({
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
-    BTN_BANNER,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
     BTN_ADMINS,
@@ -100,15 +98,21 @@ async def _send_admin_list_to_user(message: Message) -> None:
     """Adminlar ro'yxatini foydalanuvchiga yuborish."""
     from bot.texts import LIST_ADMINS_HEADER
     admins = await admin_service.list_admins()
-    if not admins:
-        text = USER_ADMINS_LIST_HEADER + "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
-    else:
-        lines = [USER_ADMINS_LIST_HEADER, ""]
+    kb_rows = []
+    if admins:
         for a in admins:
-            uname = f"@{a.username}" if a.username else f"ID: {a.telegram_id}"
-            lines.append(f"• {uname}")
-        text = "\n".join(lines)
-    await message.answer(text)
+            uname = getattr(a, "username", None)
+            label = f"{uname}" if uname else f"ID: {a.telegram_id}"
+            if uname:
+                kb_rows.append([InlineKeyboardButton(text=label, url=f"https://t.me/{uname}")])
+    if kb_rows:
+        kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
+    else:
+        kb = None
+    text = USER_ADMINS_LIST_HEADER
+    if not admins:
+        text += "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
+    await message.answer(text, reply_markup=kb)
 
 
 @router.message(CommandStart())
@@ -139,19 +143,7 @@ async def btn_user_write(message: Message) -> None:
 @router.message(F.chat.type == "private", F.text == BTN_USER_ADMINS, _NotAdminOrOwnerFilter())
 async def btn_user_admins(message: Message) -> None:
     """User pressed 'Adminlar ro'yxati' — show admin usernames for contact."""
-    from bot.services import admin_service
-    from bot.texts import LIST_ADMINS_HEADER
-
-    admins = await admin_service.list_admins()
-    if not admins:
-        text = USER_ADMINS_LIST_HEADER + "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
-    else:
-        lines = [USER_ADMINS_LIST_HEADER, ""]
-        for a in admins:
-            uname = f"@{a.username}" if a.username else f"ID: {a.telegram_id}"
-            lines.append(f"• {uname}")
-        text = "\n".join(lines)
-    await message.answer(text)
+    await _send_admin_list_to_user(message)
 
 
 @router.message(F.chat.type == "private", F.contact, _NotAdminOrOwnerFilter())

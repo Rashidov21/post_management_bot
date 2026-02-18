@@ -32,10 +32,8 @@ async def add_content(
     text: Optional[str] = None,
     caption: Optional[str] = None,
 ) -> Content:
-    """Insert new content and set as only active (deactivate others)."""
+    """Insert new content; multiple active posts are allowed."""
     conn = get_db()
-    # Deactivate all current active so only one is active
-    await conn.execute("UPDATE content SET status = 'deleted' WHERE status = 'active'")
     cur = await conn.execute(
         """INSERT INTO content (content_type, file_id, text, caption, status, publishing_enabled, created_by)
            VALUES (?, ?, ?, ?, 'active', 1, ?)""",
@@ -106,13 +104,12 @@ async def delete_content(content_id: int) -> bool:
 
 
 async def set_content_active(content_id: int) -> bool:
-    """Set this content as active (and deactivate others). Returns True if content existed and was updated."""
+    """Set this content as active (does not deactivate others). Returns True if content existed and was updated."""
     conn = get_db()
     async with conn.execute("SELECT id FROM content WHERE id = ?", (content_id,)) as cur:
         row = await cur.fetchone()
     if not row:
         return False
-    await conn.execute("UPDATE content SET status = 'deleted' WHERE status = 'active'")
     cur = await conn.execute(
         "UPDATE content SET status = 'active' WHERE id = ?",
         (content_id,),

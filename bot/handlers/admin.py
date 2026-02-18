@@ -10,13 +10,12 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Filter
 
 from bot.texts import (
-    HELP_HEADER,
+    HELP_HEADER, HELP_GUIDE,
     CMD_START, CMD_HELP, CMD_SET_TIMES, CMD_POST_ON, CMD_POST_OFF,
-    CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_SET_BANNER, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
+    CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
     CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
     POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
-    BANNER_SET,
     GROUP_ID_SHOULD_BE_NEGATIVE,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, HISTORY_CAPTION_LABEL, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
@@ -24,7 +23,6 @@ from bot.texts import (
     SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
     POST_NOT_ASSIGNED, SCHEDULE_PICK_POST_HEADER, SCHEDULE_ASSIGNED, NASHR_TIMES_LABEL,
     POST_NOW_SUCCESS, POST_NOW_FAILED,
-    BANNER_SEND_PHOTO, BANNER_PHOTO_RECEIVED, BOT_PIC_ONLY_BOTFATHER,
     ADMIN_REMOVED, ADMIN_NOT_FOUND,
     ADMIN_ADD_PROMPT, ADMIN_ADD_INVALID_ID,
     POST_ADD_SEND_MEDIA, POST_ADD_SEND_CAPTION, POST_ADD_CAPTION_ADDED,
@@ -46,7 +44,6 @@ from bot.texts import (
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
-    BTN_BANNER,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
 )
@@ -61,7 +58,6 @@ from bot.keyboards.inline import (
     schedule_pick_post_keyboard,
     schedule_hour_keyboard,
     schedule_minute_keyboard,
-    banner_confirm_keyboard,
     confirm_target_group_keyboard,
     confirm_admin_group_keyboard,
     post_add_confirm_keyboard,
@@ -80,7 +76,6 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
-    BTN_BANNER,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
 })
@@ -92,9 +87,6 @@ router = Router(name="admin")
 
 # Vaqt qo'shish: soat tanlang -> minut tanlang -> add_schedule
 _schedule_pending: dict[int, dict] = {}
-# Banner: rasm kutiladi, keyin inline Banner / Bot pic
-_banner_waiting_photo: set[int] = set()
-_banner_pending_file: dict[int, str] = {}
 # Nashr guruhi: ID kiritiladi, keyin inline tasdiq
 _target_group_awaiting: set[int] = set()
 _target_group_pending: dict[int, int] = {}
@@ -123,7 +115,7 @@ class _PostAddPendingFilter(Filter):
 
 
 def _help_text() -> str:
-    return "\n".join([
+    lines = [
         HELP_HEADER,
         CMD_START,
         CMD_HELP,
@@ -133,11 +125,13 @@ def _help_text() -> str:
         CMD_HISTORY,
         CMD_DELETE_POST,
         CMD_ACTIVATE_POST,
-        CMD_SET_BANNER,
         CMD_ADD_TEXT,
         CMD_SET_TARGET_GROUP,
         CMD_SET_ADMIN_GROUP,
-    ])
+    ]
+    lines.append("") 
+    lines.append(HELP_GUIDE)
+    return "\n".join(lines)
 
 
 @router.message(F.chat.type == "private", F.text == "/help")
@@ -161,12 +155,6 @@ async def btn_add_post(message: Message) -> None:
 @router.message(F.chat.type == "private", F.photo)
 async def admin_save_photo(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if uid in _banner_waiting_photo:
-        _banner_waiting_photo.discard(uid)
-        photo = message.photo[-1]
-        _banner_pending_file[uid] = photo.file_id
-        await message.answer(BANNER_PHOTO_RECEIVED, reply_markup=banner_confirm_keyboard())
-        return
     if uid in _post_add_waiting_media:
         _post_add_waiting_media.discard(uid)
         photo = message.photo[-1]
@@ -568,14 +556,6 @@ async def cb_post_now(callback: CallbackQuery) -> None:
         await callback.answer(POST_NOW_FAILED)
 
 
-# ---------- Banner ----------
-@router.message(F.chat.type == "private", F.photo, F.caption.regexp(re.compile(r"^/set_banner", re.I)))
-async def admin_set_banner(message: Message) -> None:
-    photo = message.photo[-1]
-    await settings_service.set_banner_file_id(photo.file_id)
-    await message.answer(BANNER_SET, reply_markup=_admin_kb(message))
-
-
 # ---------- Target group: admin sends /set_target_group in the group ----------
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_target_group")
 async def cmd_set_target_group_in_group(message: Message) -> None:
@@ -832,46 +812,6 @@ async def cb_inline_history(callback: CallbackQuery) -> None:
 async def cb_inline_schedule(callback: CallbackQuery) -> None:
     await _send_schedule_message(callback)
     await callback.answer()
-
-
-@router.callback_query(F.data == "confirm_banner")
-async def cb_confirm_banner(callback: CallbackQuery) -> None:
-    uid = callback.from_user.id if callback.from_user else 0
-    file_id = _banner_pending_file.pop(uid, None)
-    if file_id:
-        await settings_service.set_banner_file_id(file_id)
-        await callback.answer(BANNER_SET)
-    else:
-        await callback.answer()
-
-
-@router.callback_query(F.data == "confirm_bot_pic")
-async def cb_confirm_bot_pic(callback: CallbackQuery) -> None:
-    uid = callback.from_user.id if callback.from_user else 0
-    file_id = _banner_pending_file.pop(uid, None)
-    if not file_id:
-        await callback.answer()
-        return
-    try:
-        # aiogram 3.25+ has set_my_profile_photo; 3.22 may not
-        method = getattr(callback.bot, "set_my_profile_photo", None)
-        if method:
-            result = await method(photo=file_id)
-            if result:
-                await callback.answer("Bot rasmi yangilandi.")
-            else:
-                await callback.answer(BOT_PIC_ONLY_BOTFATHER)
-        else:
-            await callback.answer(BOT_PIC_ONLY_BOTFATHER)
-    except Exception:
-        await callback.answer(BOT_PIC_ONLY_BOTFATHER)
-
-
-@router.message(F.chat.type == "private", F.text == BTN_BANNER)
-async def btn_banner(message: Message) -> None:
-    uid = message.from_user.id if message.from_user else 0
-    _banner_waiting_photo.add(uid)
-    await message.answer(BANNER_SEND_PHOTO, reply_markup=_admin_kb(message))
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
