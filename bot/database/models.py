@@ -78,6 +78,10 @@ class Lead:
     taken_by_telegram_id: Optional[int]
     created_at: datetime
     phone_number: Optional[str] = None  # from contact share
+    answered: bool = False
+    answered_at: Optional[datetime] = None  # when admin replied
+    answered: bool = False
+    answered_at: Optional[datetime] = None  # when admin replied
 
 
 @dataclass

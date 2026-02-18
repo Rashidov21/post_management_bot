@@ -98,6 +98,8 @@ async def init_db() -> None:
                 status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'taken')),
                 taken_by_telegram_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                answered INTEGER NOT NULL DEFAULT 0,
+                answered_at TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (source_content_id) REFERENCES content(id)
             );
@@ -116,6 +118,8 @@ async def init_db() -> None:
         await conn.commit()
         for sql in (
             "ALTER TABLE leads ADD COLUMN phone_number TEXT",
+            "ALTER TABLE leads ADD COLUMN answered INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE leads ADD COLUMN answered_at TIMESTAMP",
             "ALTER TABLE content ADD COLUMN publishing_enabled INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE admins ADD COLUMN first_name TEXT",
             "ALTER TABLE admins ADD COLUMN last_name TEXT",
@@ -125,6 +129,11 @@ async def init_db() -> None:
                 await conn.commit()
             except Exception:
                 pass
+        try:
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_leads_status_answered ON leads(status, answered)")
+            await conn.commit()
+        except Exception:
+            pass
         try:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS content_schedule (

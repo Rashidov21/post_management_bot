@@ -18,6 +18,15 @@ def _row_to_lead(row) -> Lead:
             phone = row["phone_number"]
     except Exception:
         pass
+    answered = False
+    answered_at = None
+    try:
+        if hasattr(row, "keys") and "answered" in row.keys():
+            answered = bool(row["answered"])
+        if hasattr(row, "keys") and "answered_at" in row.keys():
+            answered_at = datetime.fromisoformat(row["answered_at"]) if isinstance(row["answered_at"], str) else row["answered_at"]
+    except Exception:
+        pass
     return Lead(
         id=row["id"],
         user_id=row["user_id"],
@@ -28,6 +37,8 @@ def _row_to_lead(row) -> Lead:
         taken_by_telegram_id=row["taken_by_telegram_id"],
         created_at=datetime.fromisoformat(row["created_at"]) if isinstance(row["created_at"], str) else row["created_at"],
         phone_number=phone,
+        answered=answered,
+        answered_at=answered_at,
     )
 
 
@@ -40,8 +51,8 @@ async def create_lead(
 ) -> Lead:
     conn = get_db()
     cur = await conn.execute(
-        """INSERT INTO leads (user_id, telegram_user_id, message_text, source_content_id, status, phone_number)
-           VALUES (?, ?, ?, ?, 'pending', ?)""",
+        """INSERT INTO leads (user_id, telegram_user_id, message_text, source_content_id, status, phone_number, answered)
+           VALUES (?, ?, ?, ?, 'pending', ?, 0)""",
         (user_id, telegram_user_id, message_text, source_content_id, phone_number),
     )
     rid = cur.lastrowid
@@ -80,6 +91,35 @@ async def count_leads_from_user_since(telegram_user_id: int, since: datetime) ->
     ) as cur:
         row = await cur.fetchone()
     return row["c"] if row else 0
+
+
+async def mark_lead_answered(lead_id: int, by_telegram_id: int) -> bool:
+    """Set answered flag, answered_at, and taken_by if empty; keep status at least 'taken'."""
+    conn = get_db()
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    cur = await conn.execute(
+        """
+        UPDATE leads
+        SET answered = 1,
+            answered_at = ?,
+            taken_by_telegram_id = COALESCE(taken_by_telegram_id, ?),
+            status = CASE WHEN status = 'pending' THEN 'taken' ELSE status END
+        WHERE id = ?
+        """,
+        (now_str, by_telegram_id, lead_id),
+    )
+    await conn.commit()
+    return cur.rowcount > 0
+
+
+async def list_unanswered_leads(limit: int = 20) -> List[Lead]:
+    conn = get_db()
+    async with conn.execute(
+        "SELECT * FROM leads WHERE answered = 0 ORDER BY created_at DESC LIMIT ?",
+        (limit,),
+    ) as cur:
+        rows = await cur.fetchall()
+    return [_row_to_lead(r) for r in rows]
 
 
 async def list_recent_leads(limit: int = 50) -> List[Lead]:

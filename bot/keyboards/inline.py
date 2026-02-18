@@ -26,24 +26,55 @@ from bot.texts import (
     BTN_ASSIGN_POST,
     BTN_PUBLISHING_ON,
     BTN_PUBLISHING_OFF,
+    BTN_NAV_HOME,
 )
 
 
-def contact_admin_keyboard_start_link(bot_username: str, post_id: int | None = None) -> InlineKeyboardMarkup:
-    """Contact Admin button that opens bot (start with optional start_param for post_id)."""
-    url = f"https://t.me/{bot_username}"
-    if post_id is not None:
-        url += f"?start=post_{post_id}"
+async def contact_admin_keyboard() -> InlineKeyboardMarkup:
+    """
+    Build contact buttons for all admins:
+    - If username: https://t.me/<username>
+    - Else: tg://user?id=<telegram_id>
+    Fallback: bot start link if admin list is empty.
+    """
+    from bot.services import admin_service
+    admins = await admin_service.list_admins()
+    rows = []
+    for a in admins:
+        uname = getattr(a, "username", None)
+        if uname:
+            url = f"https://t.me/{uname}"
+        else:
+            url = f"tg://user?id={getattr(a, 'telegram_id', 0)}"
+        label = f"{CONTACT_ADMIN_BUTTON} – {uname or getattr(a, 'telegram_id', '')}"
+        rows.append([InlineKeyboardButton(text=label, url=url)])
+    if not rows:
+        rows.append([InlineKeyboardButton(text=CONTACT_ADMIN_BUTTON, url="https://t.me/")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def lead_actions_keyboard(lead_id: int, user_id: int, username: str | None) -> InlineKeyboardMarkup:
+    """Inline actions for lead in admin group: Reply and Chat."""
+    url = f"https://t.me/{username}" if username else f"tg://user?id={user_id}"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=CONTACT_ADMIN_BUTTON, url=url)],
+        [InlineKeyboardButton(text="✉️ Javob berish", callback_data=f"reply_lead_{lead_id}")],
+        [InlineKeyboardButton(text="💬 Chatga o'tish", url=url)],
     ])
 
 
-def take_lead_keyboard(lead_id: int) -> InlineKeyboardMarkup:
-    """For admin group: Take Lead button with callback data."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=TAKE_LEAD, callback_data=f"take_lead_{lead_id}")],
-    ])
+def leads_list_keyboard(leads: list) -> InlineKeyboardMarkup:
+    """List of unanswered leads with Reply + Chat buttons."""
+    rows = []
+    for lead in leads:
+        url = f"tg://user?id={lead.telegram_user_id}"
+        rows.append([
+            InlineKeyboardButton(text=f"✉️ Reply #{lead.id}", callback_data=f"reply_lead_{lead.id}"),
+            InlineKeyboardButton(text="💬 Chat", url=url),
+        ])
+    if not rows:
+        rows.append([InlineKeyboardButton(text="—", callback_data="noop")])
+    rows.append([InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def history_delete_keyboard(content_id: int) -> InlineKeyboardMarkup:
@@ -222,6 +253,12 @@ def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(text=BTN_INLINE_POST_ON, callback_data="cb_post_on"),
             InlineKeyboardButton(text=BTN_INLINE_POST_OFF, callback_data="cb_post_off"),
+        ],
+        [
+            InlineKeyboardButton(text="🧾 Leadlar", callback_data="inline_leads"),
+        ],
+        [
+            InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
         ],
     ])
 

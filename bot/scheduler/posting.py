@@ -7,7 +7,7 @@ import logging
 from aiogram import Bot
 
 from bot.services import content_service, settings_service, schedule_service
-from bot.keyboards.inline import contact_admin_keyboard_start_link
+from bot.keyboards.inline import contact_admin_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -49,19 +49,20 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
     if not content or content.status != "active" or not content.publishing_enabled:
         return False
     try:
+        markup = await contact_admin_keyboard()
         if content.content_type == "photo" and content.file_id:
             msg = await bot.send_photo(
                 chat_id=target_group_id,
                 photo=content.file_id,
                 caption=content.caption or "",
-                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+                reply_markup=markup,
             )
         elif content.content_type == "video" and content.file_id:
             msg = await bot.send_video(
                 chat_id=target_group_id,
                 video=content.file_id,
                 caption=content.caption or "",
-                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+                reply_markup=markup,
             )
         elif content.content_type == "text" or content.text:
             text = (content.text or content.caption or "").strip()
@@ -70,7 +71,7 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
             msg = await bot.send_message(
                 chat_id=target_group_id,
                 text=text,
-                reply_markup=contact_admin_keyboard_start_link(bot_username, content.id),
+                reply_markup=markup,
             )
         else:
             return False

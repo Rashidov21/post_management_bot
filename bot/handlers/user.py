@@ -107,10 +107,10 @@ async def _send_admin_list_to_user(message: Message) -> None:
         for idx, a in enumerate(admins, start=1):
             name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])).strip()
             uname = getattr(a, "username", None)
+            url = f"https://t.me/{uname}" if uname else f"tg://user?id={a.telegram_id}"
             label_name = name or (f"@{uname}" if uname else f"ID: {a.telegram_id}")
             text_lines.append(f"Admin {idx} — {label_name}")
-            if uname:
-                kb_rows.append([InlineKeyboardButton(text=f"Admin {idx} — {label_name}", url=f"https://t.me/{uname}")])
+            kb_rows.append([InlineKeyboardButton(text=f"Admin {idx} — {label_name}", url=url)])
     kb = InlineKeyboardMarkup(inline_keyboard=kb_rows) if kb_rows else None
     await message.answer("\n".join(text_lines), reply_markup=kb)
 
@@ -201,7 +201,7 @@ async def private_message_as_lead(message: Message) -> None:
         phone_number=phone,
     )
     from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN
-    from bot.keyboards.inline import take_lead_keyboard
+    from bot.keyboards.inline import lead_actions_keyboard
 
     # HTML rejimida yuboriladi — foydalanuvchi matnini escape qilish kerak
     name = html.escape((message.from_user.full_name or "—"))
@@ -221,7 +221,7 @@ async def private_message_as_lead(message: Message) -> None:
         await message.bot.send_message(
             chat_id=admin_group_id,
             text=forward_text,
-            reply_markup=take_lead_keyboard(lead.id),
+            reply_markup=lead_actions_keyboard(lead.id, message.from_user.id, message.from_user.username),
         )
     except Exception as e:
         logger.exception("Failed to forward lead to admin group: %s", e)

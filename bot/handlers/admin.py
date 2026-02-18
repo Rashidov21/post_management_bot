@@ -64,6 +64,7 @@ from bot.keyboards.inline import (
     post_add_confirm_keyboard,
     owner_admin_list_keyboard,
     admin_main_inline_keyboard,
+    leads_list_keyboard,
 )
 from config import is_owner
 
@@ -96,6 +97,10 @@ _admin_group_awaiting: set[int] = set()
 _admin_group_pending: dict[int, int] = {}
 # Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
 _admin_add_awaiting: set[int] = set()
+# Leadga javob: admin reply text kiritadi
+_lead_reply_pending: dict[int, int] = {}
+# Lead ro'yxati konteksti (inline leads)
+_lead_list_context: set[int] = set()
 # Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
 _post_add_waiting_media: set[int] = set()
 _post_add_pending: dict[int, dict] = {}  # uid -> {content_type, file_id, caption}
@@ -129,6 +134,7 @@ def _help_text() -> str:
         CMD_ADD_TEXT,
         CMD_SET_TARGET_GROUP,
         CMD_SET_ADMIN_GROUP,
+        "Leadlar: Javob berilmagan leadlarni ko'rish uchun 🧾 Leadlar (inline) tugmasi.",
     ]
     lines.append("") 
     lines.append(HELP_GUIDE)
@@ -843,6 +849,23 @@ async def cb_inline_schedule(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "inline_leads")
+async def cb_inline_leads(callback: CallbackQuery) -> None:
+    """Show unanswered leads list."""
+    leads = await leads_service.list_unanswered_leads(limit=20)
+    _lead_list_context.add(callback.from_user.id if callback.from_user else 0)
+    if not leads:
+        await callback.message.edit_text("Javob berilmagan leadlar yo'q.", reply_markup=admin_main_inline_keyboard())
+        await callback.answer()
+        return
+    kb = leads_list_keyboard(leads)
+    lines = ["Javob berilmagan leadlar:"]
+    for ld in leads:
+        lines.append(f"#{ld.id} | user_id: {ld.telegram_user_id} | {ld.created_at}")
+    await callback.message.edit_text("\n".join(lines), reply_markup=kb)
+    await callback.answer()
+
+
 @router.callback_query(F.data == "nav_home")
 async def cb_nav_home(callback: CallbackQuery) -> None:
     # Admin/owner uchun bosh menyu: inline asosiy keyboard bilan /help matni
@@ -853,6 +876,40 @@ async def cb_nav_home(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data.regexp(re.compile(r"^reply_lead_(\d+)$")))
+async def cb_reply_lead(callback: CallbackQuery) -> None:
+    """Admin leadga javob bermoqchi — reply matni kutiladi."""
+    match = callback.data and re.match(r"^reply_lead_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    lead_id = int(match.group(1))
+    uid = callback.from_user.id if callback.from_user else 0
+    _lead_reply_pending[uid] = lead_id
+    await callback.message.answer(f"Lead #{lead_id} ga javob matnini yuboring.")
+    await callback.answer()
+
+
+@router.message(F.chat.type == "private", F.text, F.text.len() > 0)
+async def admin_reply_to_lead_text(message: Message) -> None:
+    """Agar admin leadga javob kiritayotgan bo'lsa, foydalanuvchiga yuborish."""
+    uid = message.from_user.id if message.from_user else 0
+    if uid not in _lead_reply_pending:
+        return  # boshqa handlerlarga ketadi
+    lead_id = _lead_reply_pending.pop(uid, None)
+    if not lead_id:
+        return
+    lead = await leads_service.get_lead(lead_id)
+    if not lead:
+        await message.answer("Lead topilmadi.")
+        return
+    try:
+        await message.bot.send_message(lead.telegram_user_id, message.text)
+        # lead statusini 'taken' (agar pending bo'lsa) va answered qilib belgilash
+        await leads_service.mark_lead_answered(lead_id, uid)
+        await message.answer(f"Javob yuborildi. Lead #{lead_id} yopildi.")
+    except Exception:
+        await message.answer("Javob yuborib bo'lmadi.")
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
 async def cmd_set_admin_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
