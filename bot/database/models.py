@@ -28,6 +28,8 @@ class Admin:
     id: int
     telegram_id: int
     username: Optional[str]
+    first_name: Optional[str]
+    last_name: Optional[str]
     added_at: datetime
 
 
@@ -40,6 +42,7 @@ class Content:
     text: Optional[str]
     caption: Optional[str]
     status: ContentStatus
+    publishing_enabled: bool
     created_at: datetime
     created_by: int  # telegram_id of admin
 

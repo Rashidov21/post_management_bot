@@ -9,6 +9,7 @@ from bot.texts import (
     BTN_USER_ADMINS,
     BTN_HELP,
     BTN_HISTORY,
+    BTN_ADD_POST,
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
@@ -33,6 +34,7 @@ def admin_main_keyboard(include_owner: bool = False) -> ReplyKeyboardMarkup:
     """Admin: main menu. include_owner=True adds Adminlar row for owner."""
     rows = [
         [KeyboardButton(text=BTN_HELP), KeyboardButton(text=BTN_HISTORY)],
+        [KeyboardButton(text=BTN_ADD_POST)],
         [KeyboardButton(text=BTN_POST_ON), KeyboardButton(text=BTN_POST_OFF)],
         [KeyboardButton(text=BTN_SCHEDULE), KeyboardButton(text=BTN_BANNER)],
         [KeyboardButton(text=BTN_TARGET_GROUP), KeyboardButton(text=BTN_LEAD_GROUP)],

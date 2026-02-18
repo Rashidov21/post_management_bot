@@ -18,14 +18,17 @@ from bot.texts import (
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     BANNER_SET,
     GROUP_ID_SHOULD_BE_NEGATIVE,
-    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
+    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, HISTORY_CAPTION_LABEL, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     SCHEDULE_ADD_TIME_HINT,
     SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
+    POST_NOT_ASSIGNED, SCHEDULE_PICK_POST_HEADER, SCHEDULE_ASSIGNED, NASHR_TIMES_LABEL,
     POST_NOW_SUCCESS, POST_NOW_FAILED,
     BANNER_SEND_PHOTO, BANNER_PHOTO_RECEIVED, BOT_PIC_ONLY_BOTFATHER,
     ADMIN_REMOVED, ADMIN_NOT_FOUND,
     ADMIN_ADD_PROMPT, ADMIN_ADD_INVALID_ID,
+    POST_ADD_SEND_MEDIA, POST_ADD_SEND_CAPTION, POST_ADD_CAPTION_ADDED,
+    POST_ADD_SAVED, POST_ADD_CANCELLED,
     ADMIN_ONLY,
 )
 from bot.services import (
@@ -39,6 +42,7 @@ from bot.scheduler import posting as posting_module
 from bot.texts import (
     BTN_HELP,
     BTN_HISTORY,
+    BTN_ADD_POST,
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
@@ -53,11 +57,14 @@ from bot.keyboards.inline import (
     history_list_keyboard,
     history_single_keyboard,
     schedule_keyboard,
+    schedule_keyboard_with_posts,
+    schedule_pick_post_keyboard,
     schedule_hour_keyboard,
     schedule_minute_keyboard,
     banner_confirm_keyboard,
     confirm_target_group_keyboard,
     confirm_admin_group_keyboard,
+    post_add_confirm_keyboard,
     owner_admin_list_keyboard,
     admin_main_inline_keyboard,
 )
@@ -69,6 +76,7 @@ logger = logging.getLogger(__name__)
 _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_HELP,
     BTN_HISTORY,
+    BTN_ADD_POST,
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,
@@ -95,6 +103,9 @@ _admin_group_awaiting: set[int] = set()
 _admin_group_pending: dict[int, int] = {}
 # Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
 _admin_add_awaiting: set[int] = set()
+# Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
+_post_add_waiting_media: set[int] = set()
+_post_add_pending: dict[int, dict] = {}  # uid -> {content_type, file_id, caption}
 
 
 class _AdminAddAwaitingFilter(Filter):
@@ -102,6 +113,13 @@ class _AdminAddAwaitingFilter(Filter):
 
     async def __call__(self, message: Message) -> bool:
         return (message.from_user.id if message.from_user else 0) in _admin_add_awaiting
+
+
+class _PostAddPendingFilter(Filter):
+    """True when user has sent media for new post and is in caption/confirm step."""
+
+    async def __call__(self, message: Message) -> bool:
+        return (message.from_user.id if message.from_user else 0) in _post_add_pending
 
 
 def _help_text() -> str:
@@ -131,6 +149,14 @@ async def cmd_help(message: Message) -> None:
     )
 
 
+# ---------- Post qo'shish tugmasi ----------
+@router.message(F.chat.type == "private", F.text == BTN_ADD_POST)
+async def btn_add_post(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    _post_add_waiting_media.add(uid)
+    await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+
+
 # ---------- Content: photo, video, text ----------
 @router.message(F.chat.type == "private", F.photo)
 async def admin_save_photo(message: Message) -> None:
@@ -140,6 +166,16 @@ async def admin_save_photo(message: Message) -> None:
         photo = message.photo[-1]
         _banner_pending_file[uid] = photo.file_id
         await message.answer(BANNER_PHOTO_RECEIVED, reply_markup=banner_confirm_keyboard())
+        return
+    if uid in _post_add_waiting_media:
+        _post_add_waiting_media.discard(uid)
+        photo = message.photo[-1]
+        _post_add_pending[uid] = {
+            "content_type": "photo",
+            "file_id": photo.file_id,
+            "caption": (message.caption or "").strip(),
+        }
+        await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
         return
     photo = message.photo[-1]
     await content_service.add_content(
@@ -153,13 +189,64 @@ async def admin_save_photo(message: Message) -> None:
 
 @router.message(F.chat.type == "private", F.video)
 async def admin_save_video(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    if uid in _post_add_waiting_media:
+        _post_add_waiting_media.discard(uid)
+        _post_add_pending[uid] = {
+            "content_type": "video",
+            "file_id": message.video.file_id,
+            "caption": (message.caption or "").strip(),
+        }
+        await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
+        return
     await content_service.add_content(
         content_type="video",
-        created_by=message.from_user.id,
+        created_by=uid,
         file_id=message.video.file_id,
         caption=message.caption,
     )
     await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+
+
+@router.message(F.chat.type == "private", F.text, _PostAddPendingFilter())
+async def admin_post_add_caption(message: Message) -> None:
+    """Post qo'shish: caption matnini qabul qilish."""
+    uid = message.from_user.id if message.from_user else 0
+    if uid not in _post_add_pending:
+        return
+    _post_add_pending[uid]["caption"] = (message.text or "").strip()
+    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+
+
+@router.callback_query(F.data == "confirm_post_add")
+async def cb_confirm_post_add(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    data = _post_add_pending.pop(uid, None)
+    if not data:
+        await callback.answer(POST_ADD_CANCELLED)
+        return
+    await content_service.add_content(
+        content_type=data["content_type"],
+        created_by=uid,
+        file_id=data["file_id"],
+        caption=data.get("caption") or None,
+    )
+    await callback.answer(POST_ADD_SAVED)
+    await callback.message.edit_text(
+        (callback.message.text or "") + "\n\n" + POST_ADD_SAVED,
+        reply_markup=None,
+    )
+
+
+@router.callback_query(F.data == "cancel_post_add")
+async def cb_cancel_post_add(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    _post_add_pending.pop(uid, None)
+    await callback.answer(POST_ADD_CANCELLED)
+    await callback.message.edit_text(
+        (callback.message.text or "") + "\n\n" + POST_ADD_CANCELLED,
+        reply_markup=None,
+    )
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
@@ -264,7 +351,9 @@ async def _send_history(target):
         for p in posts:
             status = "✅" if p.status == "active" else "❌"
             posted_str = _format_posted_at(last_posted.get(p.id))
-            lines.append(f"{status} ID: {p.id} | {p.content_type} | yaratilgan: {p.created_at} | oxirgi nashr: {posted_str}")
+            full_cap = (p.caption or p.text or "").strip().replace("\n", " ")
+            caption_preview = (full_cap[:50] + "…") if len(full_cap) > 50 else full_cap if full_cap else "—"
+            lines.append(f"{status} ID: {p.id} | {p.content_type} | {caption_preview} | yaratilgan: {p.created_at} | oxirgi nashr: {posted_str}")
         text = "\n".join(lines)
         kb = history_list_keyboard(posts)
     if len(text) > 4096:
@@ -313,8 +402,82 @@ async def cb_history_show(callback: CallbackQuery) -> None:
         created_at=created_str,
         posted=posted_str,
     )
+    caption_text = (post.caption or post.text or "").strip()
+    if caption_text:
+        text += f"\n\n{HISTORY_CAPTION_LABEL}\n{caption_text[:500]}"
+        if len(caption_text) > 500:
+            text += "…"
+    schedule_ids = await schedule_service.get_schedule_ids_for_content(cid)
+    time_strs = []
+    for sid in schedule_ids:
+        sch = await schedule_service.get_schedule_by_id(sid)
+        if sch:
+            time_strs.append(sch.time_str)
+    schedule_times_str = ", ".join(time_strs) if time_strs else "—"
+    text += f"\n\n{NASHR_TIMES_LABEL} {schedule_times_str}"
     await callback.message.edit_text(text, reply_markup=history_single_keyboard(post))
     await callback.answer()
+
+
+async def _refresh_history_single_message(callback: CallbackQuery, cid: int) -> None:
+    """Re-fetch post and schedule times, edit message to same single-post view."""
+    post = await content_service.get_content_by_id(cid)
+    if not post:
+        await callback.message.edit_text(POST_NOT_FOUND)
+        return
+    last_posted = await content_service.get_last_posted_at_map([cid])
+    posted_str = _format_posted_at(last_posted.get(cid))
+    created_str = str(post.created_at) if post.created_at else "—"
+    text = HISTORY_SINGLE_HEADER.format(
+        id=post.id,
+        content_type=post.content_type,
+        created_at=created_str,
+        posted=posted_str,
+    )
+    caption_text = (post.caption or post.text or "").strip()
+    if caption_text:
+        text += f"\n\n{HISTORY_CAPTION_LABEL}\n{caption_text[:500]}"
+        if len(caption_text) > 500:
+            text += "…"
+    schedule_ids = await schedule_service.get_schedule_ids_for_content(cid)
+    time_strs = []
+    for sid in schedule_ids:
+        sch = await schedule_service.get_schedule_by_id(sid)
+        if sch:
+            time_strs.append(sch.time_str)
+    schedule_times_str = ", ".join(time_strs) if time_strs else "—"
+    text += f"\n\n{NASHR_TIMES_LABEL} {schedule_times_str}"
+    await callback.message.edit_text(text, reply_markup=history_single_keyboard(post))
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^pub_on_(\d+)$")))
+async def cb_pub_on(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^pub_on_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    cid = int(match.group(1))
+    ok = await content_service.set_content_publishing_enabled(cid, True)
+    if ok:
+        await callback.answer("Nashr yoqildi.")
+        await _refresh_history_single_message(callback, cid)
+    else:
+        await callback.answer(POST_NOT_FOUND)
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^pub_off_(\d+)$")))
+async def cb_pub_off(callback: CallbackQuery) -> None:
+    match = callback.data and re.match(r"^pub_off_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    cid = int(match.group(1))
+    ok = await content_service.set_content_publishing_enabled(cid, False)
+    if ok:
+        await callback.answer("Nashr o'chirildi.")
+        await _refresh_history_single_message(callback, cid)
+    else:
+        await callback.answer(POST_NOT_FOUND)
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/delete_post\s+(\d+)$")))
@@ -493,20 +656,54 @@ async def cb_confirm_target_group(callback: CallbackQuery) -> None:
         await callback.answer()
 
 
+async def _build_schedule_content_map(schedules):
+    """Build schedule_id -> (content_id, caption_preview) or None."""
+    m = {}
+    for s in schedules:
+        sid = getattr(s, "id", None)
+        if sid is None:
+            continue
+        cid = await schedule_service.get_content_id_for_schedule(sid)
+        if cid:
+            content = await content_service.get_content_by_id(cid)
+            if content:
+                cap = (getattr(content, "caption", None) or getattr(content, "text", None) or f"#{content.id}").strip() or f"#{content.id}"
+                m[sid] = (cid, cap[:100])
+        if sid not in m:
+            m[sid] = None
+    return m
+
+
+def _format_schedule_text(schedules, schedule_content_map):
+    """Format schedule message with per-time post info."""
+    times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
+    lines = [CURRENT_TIMES.format(times_str), ""]
+    for s in schedules:
+        info = schedule_content_map.get(getattr(s, "id", None))
+        if info:
+            cid, preview = info
+            line = f"  {s.time_str} — Post #{cid}: {preview[:50]}{'…' if len(preview) > 50 else ''}"
+        else:
+            line = f"  {s.time_str} — {POST_NOT_ASSIGNED}"
+        lines.append(line)
+    lines.extend(["", SCHEDULE_ADD_TIME_HINT])
+    return "\n".join(lines)
+
+
 @router.message(F.chat.type == "private", F.text == BTN_SCHEDULE)
 async def btn_schedule(message: Message) -> None:
     schedules = await schedule_service.list_schedules()
-    times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
-    text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
-    await message.answer(text, reply_markup=schedule_keyboard(schedules))
+    schedule_content_map = await _build_schedule_content_map(schedules)
+    text = _format_schedule_text(schedules, schedule_content_map)
+    await message.answer(text, reply_markup=schedule_keyboard_with_posts(schedules, schedule_content_map))
 
 
 async def _send_schedule_message(target, reply_markup=None):
     """Send or edit schedule list (for message or callback)."""
     schedules = await schedule_service.list_schedules()
-    times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
-    text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
-    kb = schedule_keyboard(schedules) if reply_markup is None else reply_markup
+    schedule_content_map = await _build_schedule_content_map(schedules)
+    text = _format_schedule_text(schedules, schedule_content_map)
+    kb = schedule_keyboard_with_posts(schedules, schedule_content_map) if reply_markup is None else reply_markup
     if isinstance(target, Message):
         await target.answer(text, reply_markup=kb)
     else:
@@ -525,12 +722,50 @@ async def cb_del_time(callback: CallbackQuery) -> None:
     ok = await schedule_service.remove_schedule(time_str)
     if ok:
         await callback.answer(SCHEDULE_REMOVED.format(time_str))
-        schedules = await schedule_service.list_schedules()
-        times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
-        text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
-        await callback.message.edit_text(text, reply_markup=schedule_keyboard(schedules))
+        await _send_schedule_message(callback)
     else:
         await callback.answer(SCHEDULE_INVALID)
+
+
+@router.callback_query(F.data == "schedule_back")
+async def cb_schedule_back(callback: CallbackQuery) -> None:
+    await _send_schedule_message(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^assign_post_(\d+)$")))
+async def cb_assign_post(callback: CallbackQuery) -> None:
+    """Show post list to assign to this schedule time."""
+    match = callback.data and re.match(r"^assign_post_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    schedule_id = int(match.group(1))
+    posts = await content_service.list_all_posts_for_history(limit=20)
+    if not posts:
+        await callback.answer("Postlar yo'q. Avval post qo'shing.")
+        return
+    await callback.message.edit_text(
+        SCHEDULE_PICK_POST_HEADER,
+        reply_markup=schedule_pick_post_keyboard(schedule_id, posts),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^assign_schedule_(\d+)_content_(\d+)$")))
+async def cb_assign_schedule_content(callback: CallbackQuery) -> None:
+    """Assign post to schedule time."""
+    match = callback.data and re.match(r"^assign_schedule_(\d+)_content_(\d+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    schedule_id, content_id = int(match.group(1)), int(match.group(2))
+    ok = await schedule_service.set_schedule_content(schedule_id, content_id)
+    if ok:
+        await callback.answer(SCHEDULE_ASSIGNED)
+        await _send_schedule_message(callback)
+    else:
+        await callback.answer("Xatolik.")
 
 
 @router.callback_query(F.data == "add_time")
@@ -719,7 +954,10 @@ def _format_admin_list_message(admins: list) -> tuple[str, object]:
     lines = [LIST_ADMINS_HEADER]
     for a in admins:
         uname = f"@{a.username}" if getattr(a, "username", None) else ""
-        lines.append(f"- {a.telegram_id} {uname}")
+        name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])) or "—"
+        added = getattr(a, "added_at", None)
+        added_str = added.strftime("%Y-%m-%d %H:%M") if added else ""
+        lines.append(f"• {a.telegram_id} {uname} | {name} | qo'shilgan: {added_str}")
     text = "\n".join(lines)
     return text, owner_admin_list_keyboard(admins)
 

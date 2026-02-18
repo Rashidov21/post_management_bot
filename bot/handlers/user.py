@@ -26,6 +26,7 @@ from bot.texts import (
     BTN_HISTORY,
     BTN_POST_ON,
     BTN_POST_OFF,
+    BTN_ADD_POST,
     BTN_SCHEDULE,
     BTN_BANNER,
     BTN_TARGET_GROUP,
@@ -42,6 +43,7 @@ router = Router(name="user")
 _ADMIN_OWNER_BUTTONS = frozenset({
     BTN_HELP,
     BTN_HISTORY,
+    BTN_ADD_POST,
     BTN_POST_ON,
     BTN_POST_OFF,
     BTN_SCHEDULE,

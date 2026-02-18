@@ -19,6 +19,7 @@ def _row_to_content(row) -> Content:
         text=row["text"],
         caption=row["caption"],
         status=row["status"],
+        publishing_enabled=bool(row.get("publishing_enabled", 1)),
         created_at=datetime.fromisoformat(row["created_at"]) if isinstance(row["created_at"], str) else row["created_at"],
         created_by=row["created_by"],
     )
@@ -36,8 +37,8 @@ async def add_content(
     # Deactivate all current active so only one is active
     await conn.execute("UPDATE content SET status = 'deleted' WHERE status = 'active'")
     cur = await conn.execute(
-        """INSERT INTO content (content_type, file_id, text, caption, status, created_by)
-           VALUES (?, ?, ?, ?, 'active', ?)""",
+        """INSERT INTO content (content_type, file_id, text, caption, status, publishing_enabled, created_by)
+           VALUES (?, ?, ?, ?, 'active', 1, ?)""",
         (content_type, file_id or "", text or "", caption or "", created_by),
     )
     rid = cur.lastrowid
@@ -113,6 +114,17 @@ async def set_content_active(content_id: int) -> bool:
     cur = await conn.execute(
         "UPDATE content SET status = 'active' WHERE id = ?",
         (content_id,),
+    )
+    await conn.commit()
+    return cur.rowcount > 0
+
+
+async def set_content_publishing_enabled(content_id: int, enabled: bool) -> bool:
+    """Turn publishing on/off for this post (at its scheduled times). Returns True if updated."""
+    conn = get_db()
+    cur = await conn.execute(
+        "UPDATE content SET publishing_enabled = ? WHERE id = ?",
+        (1 if enabled else 0, content_id),
     )
     await conn.commit()
     return cur.rowcount > 0

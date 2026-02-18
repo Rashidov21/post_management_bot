@@ -15,7 +15,9 @@ def _row_to_admin(row) -> Admin:
     return Admin(
         id=row["id"],
         telegram_id=row["telegram_id"],
-        username=row["username"],
+        username=row.get("username"),
+        first_name=row.get("first_name"),
+        last_name=row.get("last_name"),
         added_at=datetime.fromisoformat(row["added_at"]) if isinstance(row["added_at"], str) else row["added_at"],
     )
 
@@ -27,13 +29,18 @@ async def is_admin(telegram_id: int) -> bool:
     return row is not None
 
 
-async def add_admin(telegram_id: int, username: Optional[str] = None) -> bool:
+async def add_admin(
+    telegram_id: int,
+    username: Optional[str] = None,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+) -> bool:
     """Add admin. False if already exists."""
     conn = get_db()
     try:
         await conn.execute(
-            "INSERT INTO admins (telegram_id, username) VALUES (?, ?)",
-            (telegram_id, username or ""),
+            "INSERT INTO admins (telegram_id, username, first_name, last_name) VALUES (?, ?, ?, ?)",
+            (telegram_id, username or "", first_name or "", last_name or ""),
         )
         await conn.commit()
         return True

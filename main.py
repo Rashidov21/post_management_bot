@@ -17,7 +17,7 @@ from aiogram.types import ErrorEvent
 
 from config import BOT_TOKEN, LOG_LEVEL, LOG_FORMAT, SCHEDULER_TIMEZONE, validate_config
 from bot.database import init_db, open_app_connection, close_app_connection
-from bot.scheduler.posting import post_active_content_to_group
+from bot.scheduler.posting import post_scheduled_content
 from bot.services import schedule_service, settings_service
 from bot.handlers import user, admin, owner
 from bot.middlewares.admin import AdminOnlyMiddleware, OwnerOnlyMiddleware
@@ -37,13 +37,8 @@ def setup_logging() -> None:
 
 
 async def setup_scheduler(bot: Bot, bot_username: str) -> AsyncIOScheduler:
-    """Load schedules from DB and add cron jobs. Persistent across restarts."""
+    """Load schedules from DB and add cron jobs; each time posts its assigned content."""
     scheduler = AsyncIOScheduler(timezone=SCHEDULER_TIMEZONE)
-
-    async def job() -> None:
-        if not await settings_service.is_posting_enabled():
-            return
-        await post_active_content_to_group(bot, bot_username)
 
     schedules = await schedule_service.list_schedules()
     for s in schedules:
@@ -51,6 +46,11 @@ async def setup_scheduler(bot: Bot, bot_username: str) -> AsyncIOScheduler:
             continue
         parts = s.time_str.split(":")
         hour, minute = int(parts[0]), int(parts[1])
+        schedule_id = s.id
+
+        async def job(sid: int = schedule_id) -> None:
+            await post_scheduled_content(bot, bot_username, sid)
+
         scheduler.add_job(
             job,
             CronTrigger(hour=hour, minute=minute),

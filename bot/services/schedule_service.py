@@ -1,10 +1,11 @@
 """
 Schedule times: add/remove/list posting times (HH:MM), enable/disable.
+Post–time binding: which content_id posts at which schedule_id (content_schedule table).
 """
 import logging
 import re
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from bot.database.connection import get_db
 from bot.database.models import Schedule
@@ -76,6 +77,13 @@ async def list_schedules() -> List[Schedule]:
     return [_row_to_schedule(r) for r in rows]
 
 
+async def get_schedule_by_id(schedule_id: int) -> Optional[Schedule]:
+    conn = get_db()
+    async with conn.execute("SELECT * FROM schedules WHERE id = ?", (schedule_id,)) as cur:
+        row = await cur.fetchone()
+    return _row_to_schedule(row) if row else None
+
+
 async def set_schedule_enabled(time_str: str, enabled: bool) -> bool:
     normalized = parse_time(time_str)
     if not normalized:
@@ -87,3 +95,41 @@ async def set_schedule_enabled(time_str: str, enabled: bool) -> bool:
     )
     await conn.commit()
     return cur.rowcount > 0
+
+
+async def get_content_id_for_schedule(schedule_id: int) -> Optional[int]:
+    """Which content_id is assigned to this schedule (time). None if none."""
+    conn = get_db()
+    async with conn.execute(
+        "SELECT content_id FROM content_schedule WHERE schedule_id = ?",
+        (schedule_id,),
+    ) as cur:
+        row = await cur.fetchone()
+    return row["content_id"] if row else None
+
+
+async def set_schedule_content(schedule_id: int, content_id: int) -> bool:
+    """Assign a post to this schedule time (one post per time). INSERT OR REPLACE."""
+    conn = get_db()
+    try:
+        await conn.execute(
+            """INSERT INTO content_schedule (schedule_id, content_id) VALUES (?, ?)
+               ON CONFLICT(schedule_id) DO UPDATE SET content_id = excluded.content_id""",
+            (schedule_id, content_id),
+        )
+        await conn.commit()
+        return True
+    except Exception:
+        await conn.rollback()
+        return False
+
+
+async def get_schedule_ids_for_content(content_id: int) -> List[int]:
+    """List schedule_id(s) that are assigned to this content."""
+    conn = get_db()
+    async with conn.execute(
+        "SELECT schedule_id FROM content_schedule WHERE content_id = ?",
+        (content_id,),
+    ) as cur:
+        rows = await cur.fetchall()
+    return [r["schedule_id"] for r in rows]

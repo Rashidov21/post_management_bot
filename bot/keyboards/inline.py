@@ -22,6 +22,12 @@ from bot.texts import (
     BTN_SET_BOT_PIC,
     BTN_CONFIRM_TARGET_GROUP,
     BTN_CONFIRM_ADMIN_GROUP,
+    BTN_POST_CONFIRM,
+    BTN_POST_CANCEL,
+    POST_NOT_ASSIGNED,
+    BTN_ASSIGN_POST,
+    BTN_PUBLISHING_ON,
+    BTN_PUBLISHING_OFF,
 )
 
 
@@ -77,8 +83,13 @@ def _short_date(p) -> str:
 
 
 def history_single_keyboard(post) -> InlineKeyboardMarkup:
-    """Bitta post uchun: O'chirish/Aktivlashtirish, Hozir joylash, Orqaga."""
+    """Bitta post uchun: Nashr yoqish/o'chirish, O'chirish/Aktivlashtirish, Hozir joylash, Orqaga."""
     rows = []
+    enabled = getattr(post, "publishing_enabled", True)
+    if enabled:
+        rows.append([InlineKeyboardButton(text=BTN_PUBLISHING_OFF, callback_data=f"pub_off_{post.id}")])
+    else:
+        rows.append([InlineKeyboardButton(text=BTN_PUBLISHING_ON, callback_data=f"pub_on_{post.id}")])
     if getattr(post, "status", None) == "active":
         rows.append([
             InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{post.id}"),
@@ -112,13 +123,38 @@ def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
 
 
 def schedule_keyboard(schedules: list) -> InlineKeyboardMarkup:
-    """Nashr vaqtlari: har bir vaqt uchun O'chirish, oxirida Vaqt qo'shish."""
+    """Nashr vaqtlari: har bir vaqt uchun Post tanlash + O'chirish, oxirida Vaqt qo'shish."""
+    return schedule_keyboard_with_posts(schedules, {})
+
+
+def schedule_keyboard_with_posts(
+    schedules: list,
+    schedule_content_map: dict,
+) -> InlineKeyboardMarkup:
+    """schedule_content_map: schedule_id -> (content_id, caption_preview) or None."""
     rows = []
     for s in schedules:
+        sid = getattr(s, "id", None)
         time_str = getattr(s, "time_str", str(s))
-        cb = "del_time_" + time_str.replace(":", "_")
-        rows.append([InlineKeyboardButton(text=f"{time_str}  |  O'chirish", callback_data=cb)])
+        time_enc = time_str.replace(":", "_")
+        rows.append([
+            InlineKeyboardButton(text=BTN_ASSIGN_POST, callback_data=f"assign_post_{sid}" if sid is not None else f"assign_post_0"),
+            InlineKeyboardButton(text="O'chirish", callback_data=f"del_time_{time_enc}"),
+        ])
     rows.append([InlineKeyboardButton(text=BTN_ADD_TIME, callback_data="add_time")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def schedule_pick_post_keyboard(schedule_id: int, posts: list) -> InlineKeyboardMarkup:
+    """Post tanlash: har bir post uchun tugma (assign_schedule_{schedule_id}_content_{content_id}), oxirida Orqaga."""
+    rows = []
+    for p in posts:
+        cap = (getattr(p, "caption", None) or getattr(p, "text", None) or "").strip() or f"#{getattr(p, 'id', p)}"
+        if len(cap) > 35:
+            cap = cap[:32] + "…"
+        label = f"#{getattr(p, 'id', p)}: {cap}"
+        rows.append([InlineKeyboardButton(text=label, callback_data=f"assign_schedule_{schedule_id}_content_{getattr(p, 'id', p)}")])
+    rows.append([InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="schedule_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -160,6 +196,16 @@ def confirm_admin_group_keyboard() -> InlineKeyboardMarkup:
     """After lead group ID entered: Guruhni belgilash."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_CONFIRM_ADMIN_GROUP, callback_data="confirm_admin_group")],
+    ])
+
+
+def post_add_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Post qo'shish: Yakunlash va Bekor qilish."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=BTN_POST_CONFIRM, callback_data="confirm_post_add"),
+            InlineKeyboardButton(text=BTN_POST_CANCEL, callback_data="cancel_post_add"),
+        ],
     ])
 
 

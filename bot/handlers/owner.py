@@ -47,7 +47,12 @@ async def cmd_add_admin(message: Message) -> None:
     if await admin_service.is_admin(user.id):
         await message.answer(ADMIN_ALREADY)
         return
-    ok = await admin_service.add_admin(user.id, user.username)
+    ok = await admin_service.add_admin(
+        user.id,
+        user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+    )
     await message.answer(ADMIN_ADDED if ok else "Xatolik yuz berdi.", reply_markup=_owner_kb(message))
 
 
@@ -70,5 +75,8 @@ async def cmd_list_admins(message: Message) -> None:
     lines = [LIST_ADMINS_HEADER]
     for a in admins:
         uname = f"@{a.username}" if a.username else ""
-        lines.append(f"- {a.telegram_id} {uname}")
+        name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])) or "—"
+        added = getattr(a, "added_at", None)
+        added_str = added.strftime("%Y-%m-%d %H:%M") if added else ""
+        lines.append(f"• {a.telegram_id} {uname} | {name} | qo'shilgan: {added_str}")
     await message.answer("\n".join(lines), reply_markup=_owner_kb(message))

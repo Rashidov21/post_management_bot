@@ -49,6 +49,8 @@ async def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 telegram_id INTEGER UNIQUE NOT NULL,
                 username TEXT,
+                first_name TEXT,
+                last_name TEXT,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -59,6 +61,7 @@ async def init_db() -> None:
                 text TEXT,
                 caption TEXT,
                 status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'deleted')),
+                publishing_enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by INTEGER NOT NULL
             );
@@ -68,6 +71,13 @@ async def init_db() -> None:
                 time_str TEXT NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS content_schedule (
+                schedule_id INTEGER PRIMARY KEY,
+                content_id INTEGER NOT NULL,
+                FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+                FOREIGN KEY (content_id) REFERENCES content(id)
             );
 
             CREATE TABLE IF NOT EXISTS posts_log (
@@ -104,8 +114,26 @@ async def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_posts_log_content ON posts_log(content_id);
         """)
         await conn.commit()
+        for sql in (
+            "ALTER TABLE leads ADD COLUMN phone_number TEXT",
+            "ALTER TABLE content ADD COLUMN publishing_enabled INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE admins ADD COLUMN first_name TEXT",
+            "ALTER TABLE admins ADD COLUMN last_name TEXT",
+        ):
+            try:
+                await conn.execute(sql)
+                await conn.commit()
+            except Exception:
+                pass
         try:
-            await conn.execute("ALTER TABLE leads ADD COLUMN phone_number TEXT")
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS content_schedule (
+                    schedule_id INTEGER PRIMARY KEY,
+                    content_id INTEGER NOT NULL,
+                    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+                    FOREIGN KEY (content_id) REFERENCES content(id)
+                )
+            """)
             await conn.commit()
         except Exception:
             pass
