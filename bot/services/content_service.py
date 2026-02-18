@@ -19,7 +19,7 @@ def _row_to_content(row) -> Content:
         text=row["text"],
         caption=row["caption"],
         status=row["status"],
-        publishing_enabled=bool(row.get("publishing_enabled", 1)),
+        publishing_enabled=bool(row["publishing_enabled"]) if "publishing_enabled" in row.keys() else True,
         created_at=datetime.fromisoformat(row["created_at"]) if isinstance(row["created_at"], str) else row["created_at"],
         created_by=row["created_by"],
     )
@@ -99,6 +99,8 @@ async def delete_content(content_id: int) -> bool:
         "UPDATE content SET status = 'deleted' WHERE id = ? AND status = 'active'",
         (content_id,),
     )
+    # Clean up schedule bindings so deleted posts are not scheduled
+    await conn.execute("DELETE FROM content_schedule WHERE content_id = ?", (content_id,))
     await conn.commit()
     return cur.rowcount > 0
 

@@ -666,7 +666,7 @@ async def _build_schedule_content_map(schedules):
         cid = await schedule_service.get_content_id_for_schedule(sid)
         if cid:
             content = await content_service.get_content_by_id(cid)
-            if content:
+            if content and content.status == "active":
                 cap = (getattr(content, "caption", None) or getattr(content, "text", None) or f"#{content.id}").strip() or f"#{content.id}"
                 m[sid] = (cid, cap[:100])
         if sid not in m:
@@ -741,7 +741,8 @@ async def cb_assign_post(callback: CallbackQuery) -> None:
         await callback.answer()
         return
     schedule_id = int(match.group(1))
-    posts = await content_service.list_all_posts_for_history(limit=20)
+    # Only allow active posts to be assigned to schedules
+    posts = await content_service.list_content(limit=20, include_deleted=False)
     if not posts:
         await callback.answer("Postlar yo'q. Avval post qo'shing.")
         return

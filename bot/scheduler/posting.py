@@ -28,7 +28,8 @@ async def post_scheduled_content(bot: Bot, bot_username: str, schedule_id: int) 
         logger.debug("No content assigned to schedule_id=%s", schedule_id)
         return
     content = await content_service.get_content_by_id(content_id)
-    if not content or not content.publishing_enabled:
+    # Skip if content missing, deleted, or publishing disabled
+    if not content or content.status != "active" or not content.publishing_enabled:
         return
     ok = await post_content_by_id_to_group(bot, bot_username, content_id)
     if ok:
@@ -45,7 +46,7 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
         logger.warning("Target group not set, skipping post now")
         return False
     content = await content_service.get_content_by_id(content_id)
-    if not content:
+    if not content or content.status != "active" or not content.publishing_enabled:
         return False
     try:
         if content.content_type == "photo" and content.file_id:

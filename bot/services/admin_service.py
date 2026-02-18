@@ -12,12 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 def _row_to_admin(row) -> Admin:
+    keys = row.keys()
     return Admin(
         id=row["id"],
         telegram_id=row["telegram_id"],
-        username=row.get("username"),
-        first_name=row.get("first_name"),
-        last_name=row.get("last_name"),
+        username=row["username"] if "username" in keys else None,
+        first_name=row["first_name"] if "first_name" in keys else None,
+        last_name=row["last_name"] if "last_name" in keys else None,
         added_at=datetime.fromisoformat(row["added_at"]) if isinstance(row["added_at"], str) else row["added_at"],
     )
 
