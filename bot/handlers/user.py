@@ -2,6 +2,7 @@
 """
 User-facing handlers: /start, private messages as leads, rate limit.
 """
+import html
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -196,16 +197,18 @@ async def private_message_as_lead(message: Message) -> None:
     from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN
     from bot.keyboards.inline import take_lead_keyboard
 
-    name = message.from_user.full_name or "—"
-    username = message.from_user.username or "—"
+    # HTML rejimida yuboriladi — foydalanuvchi matnini escape qilish kerak
+    name = html.escape((message.from_user.full_name or "—"))
+    username = html.escape((message.from_user.username or "—"))
     source_str = f"#{source_content_id}" if source_content_id else LEAD_SOURCE_UNKNOWN
-    phone_str = phone or "—"
+    phone_str = html.escape(phone or "—")
+    text_escaped = html.escape((message.text or "")[:500])
     forward_text = LEAD_FORWARD_TEMPLATE.format(
         name=name,
         username=username,
         user_id=message.from_user.id,
         phone=phone_str,
-        text=(message.text or "")[:500],
+        text=text_escaped,
         source=source_str,
     )
     try:

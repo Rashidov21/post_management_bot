@@ -17,6 +17,7 @@ from bot.texts import (
     GROUP_ID_SHOULD_BE_NEGATIVE,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
+    SCHEDULE_ADD_TIME_HINT,
     ADMIN_ONLY,
 )
 from bot.services import (
@@ -37,10 +38,27 @@ from bot.texts import (
     BTN_LEAD_GROUP,
 )
 from bot.keyboards.reply import admin_main_keyboard
-from bot.keyboards.inline import history_refresh_keyboard, history_actions_keyboard
+from bot.keyboards.inline import (
+    history_refresh_keyboard,
+    history_actions_keyboard,
+    schedule_keyboard,
+    admin_main_inline_keyboard,
+)
 from config import OWNER_ID
 
 logger = logging.getLogger(__name__)
+
+# Reply keyboard tugma matnlari — admin_text_ignored_for_content ularni yutmasin, maxsus handlerlar ishlasin
+_ADMIN_BUTTON_TEXTS = frozenset({
+    BTN_HELP,
+    BTN_HISTORY,
+    BTN_POST_ON,
+    BTN_POST_OFF,
+    BTN_SCHEDULE,
+    BTN_BANNER,
+    BTN_TARGET_GROUP,
+    BTN_LEAD_GROUP,
+})
 
 
 def _admin_kb(message: Message):
@@ -69,7 +87,10 @@ def _help_text() -> str:
 @router.message(F.chat.type == "private", F.text == "/help")
 @router.message(F.chat.type == "private", F.text == BTN_HELP)
 async def cmd_help(message: Message) -> None:
-    await message.answer(_help_text(), reply_markup=_admin_kb(message))
+    await message.answer(
+        _help_text(),
+        reply_markup=admin_main_inline_keyboard(),
+    )
 
 
 # ---------- Content: photo, video, text ----------
@@ -120,9 +141,14 @@ async def admin_add_text_empty(message: Message) -> None:
     await message.answer(ADD_TEXT_EMPTY, reply_markup=_admin_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text, F.text.startswith("/") == False)
+@router.message(
+    F.chat.type == "private",
+    F.text,
+    F.text.startswith("/") == False,
+    F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
+)
 async def admin_text_ignored_for_content(message: Message) -> None:
-    """Non-command text from admin in private: consumed here (user router does not run for admins)."""
+    """Non-command, non-button text from admin in private: consumed here (user router does not run for admins)."""
     pass
 
 
@@ -194,8 +220,10 @@ async def _send_history(target):
             posted_str = _format_posted_at(last_posted.get(p.id))
             lines.append(f"{status} ID: {p.id} | {p.content_type} | yaratilgan: {p.created_at} | oxirgi nashr: {posted_str}")
         text = "\n".join(lines)
+    if len(text) > 4096:
+        text = text[:4090] + "\n…"
     kb = history_actions_keyboard(posts)
-    if hasattr(target, "answer"):
+    if isinstance(target, Message):
         await target.answer(text, reply_markup=kb)
     else:
         await target.message.edit_text(text, reply_markup=kb)
@@ -331,8 +359,69 @@ async def cmd_set_target_group_private(message: Message) -> None:
 async def btn_schedule(message: Message) -> None:
     schedules = await schedule_service.list_schedules()
     times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
-    text = CURRENT_TIMES.format(times_str) + "\n\nVaqt qo'shish: /set_times 09:00 14:00 18:00"
-    await message.answer(text, reply_markup=_admin_kb(message))
+    text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
+    await message.answer(text, reply_markup=schedule_keyboard(schedules))
+
+
+async def _send_schedule_message(target, reply_markup=None):
+    """Send or edit schedule list (for message or callback)."""
+    schedules = await schedule_service.list_schedules()
+    times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
+    text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
+    kb = schedule_keyboard(schedules) if reply_markup is None else reply_markup
+    if isinstance(target, Message):
+        await target.answer(text, reply_markup=kb)
+    else:
+        await target.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^del_time_(.+)$")))
+async def cb_del_time(callback: CallbackQuery) -> None:
+    """Vaqtni o'chirish: del_time_09_00 -> 09:00."""
+    match = callback.data and re.match(r"^del_time_(.+)$", callback.data)
+    if not match:
+        await callback.answer()
+        return
+    time_encoded = match.group(1)
+    time_str = time_encoded.replace("_", ":", 1)
+    ok = await schedule_service.remove_schedule(time_str)
+    if ok:
+        await callback.answer(SCHEDULE_REMOVED.format(time_str))
+        schedules = await schedule_service.list_schedules()
+        times_str = ", ".join(s.time_str for s in schedules) if schedules else "—"
+        text = CURRENT_TIMES.format(times_str) + "\n\n" + SCHEDULE_ADD_TIME_HINT
+        await callback.message.edit_text(text, reply_markup=schedule_keyboard(schedules))
+    else:
+        await callback.answer(SCHEDULE_INVALID)
+
+
+@router.callback_query(F.data == "add_time")
+async def cb_add_time(callback: CallbackQuery) -> None:
+    await callback.answer(SCHEDULE_ADD_TIME_HINT, show_alert=True)
+
+
+@router.callback_query(F.data == "cb_post_on")
+async def cb_post_on(callback: CallbackQuery) -> None:
+    await settings_service.set_posting_enabled(True)
+    await callback.answer(POSTING_ON)
+
+
+@router.callback_query(F.data == "cb_post_off")
+async def cb_post_off(callback: CallbackQuery) -> None:
+    await settings_service.set_posting_enabled(False)
+    await callback.answer(POSTING_OFF)
+
+
+@router.callback_query(F.data == "inline_history")
+async def cb_inline_history(callback: CallbackQuery) -> None:
+    await _send_history(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "inline_schedule")
+async def cb_inline_schedule(callback: CallbackQuery) -> None:
+    await _send_schedule_message(callback)
+    await callback.answer()
 
 
 @router.message(F.chat.type == "private", F.text == BTN_BANNER)

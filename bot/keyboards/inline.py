@@ -11,6 +11,11 @@ from bot.texts import (
     BTN_ADMIN_ADD_HINT,
     BTN_ADMIN_REMOVE_HINT,
     BTN_REFRESH_HISTORY,
+    BTN_ADD_TIME,
+    BTN_INLINE_HISTORY,
+    BTN_INLINE_SCHEDULE,
+    BTN_INLINE_POST_ON,
+    BTN_INLINE_POST_OFF,
 )
 
 
@@ -55,6 +60,31 @@ def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
             rows.append([InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}")])
     rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def schedule_keyboard(schedules: list) -> InlineKeyboardMarkup:
+    """Nashr vaqtlari: har bir vaqt uchun O'chirish, oxirida Vaqt qo'shish."""
+    rows = []
+    for s in schedules:
+        time_str = getattr(s, "time_str", str(s))
+        cb = "del_time_" + time_str.replace(":", "_")
+        rows.append([InlineKeyboardButton(text=f"{time_str}  |  O'chirish", callback_data=cb)])
+    rows.append([InlineKeyboardButton(text=BTN_ADD_TIME, callback_data="add_time")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
+    """Admin/Owner: asosiy amallar — Postlar tarixi, Nashr vaqtlari, Yoqish/O'chirish."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=BTN_INLINE_HISTORY, callback_data="inline_history"),
+            InlineKeyboardButton(text=BTN_INLINE_SCHEDULE, callback_data="inline_schedule"),
+        ],
+        [
+            InlineKeyboardButton(text=BTN_INLINE_POST_ON, callback_data="cb_post_on"),
+            InlineKeyboardButton(text=BTN_INLINE_POST_OFF, callback_data="cb_post_off"),
+        ],
+    ])
 
 
 def owner_admins_keyboard() -> InlineKeyboardMarkup:
