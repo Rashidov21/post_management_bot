@@ -6,6 +6,7 @@ import logging
 import re
 
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Filter
 
@@ -349,7 +350,14 @@ async def _send_history(target):
     if isinstance(target, Message):
         await target.answer(text, reply_markup=kb)
     else:
-        await target.message.edit_text(text, reply_markup=kb)
+        try:
+            await target.message.edit_text(text, reply_markup=kb)
+        except TelegramBadRequest as e:
+            # Ignore "message is not modified" to avoid noisy errors on refresh
+            if "message is not modified" in str(e):
+                await target.answer("Yangilandi.")
+            else:
+                raise
 
 
 @router.message(F.chat.type == "private", F.text == "/history")
@@ -832,6 +840,16 @@ async def cb_inline_history(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "inline_schedule")
 async def cb_inline_schedule(callback: CallbackQuery) -> None:
     await _send_schedule_message(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "nav_home")
+async def cb_nav_home(callback: CallbackQuery) -> None:
+    # Admin/owner uchun bosh menyu: inline asosiy keyboard bilan /help matni
+    await callback.message.edit_text(
+        _help_text(),
+        reply_markup=admin_main_inline_keyboard(),
+    )
     await callback.answer()
 
 

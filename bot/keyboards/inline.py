@@ -66,7 +66,10 @@ def history_list_keyboard(posts: list) -> InlineKeyboardMarkup:
     for p in posts:
         label = f"ID: {p.id} | {p.content_type} | {_short_date(p)}"
         rows.append([InlineKeyboardButton(text=label, callback_data=f"history_show_{p.id}")])
-    rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
+    rows.append([
+        InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history"),
+        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -98,7 +101,10 @@ def history_single_keyboard(post) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{post.id}"),
             InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{post.id}"),
         ])
-    rows.append([InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="history_back")])
+    rows.append([
+        InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="history_back"),
+        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -116,7 +122,10 @@ def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}"),
                 InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{p.id}"),
             ])
-    rows.append([InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")])
+    rows.append([
+        InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history"),
+        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -140,6 +149,7 @@ def schedule_keyboard_with_posts(
             InlineKeyboardButton(text="O'chirish", callback_data=f"del_time_{time_enc}"),
         ])
     rows.append([InlineKeyboardButton(text=BTN_ADD_TIME, callback_data="add_time")])
+    rows.append([InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -152,7 +162,10 @@ def schedule_pick_post_keyboard(schedule_id: int, posts: list) -> InlineKeyboard
             cap = cap[:32] + "…"
         label = f"#{getattr(p, 'id', p)}: {cap}"
         rows.append([InlineKeyboardButton(text=label, callback_data=f"assign_schedule_{schedule_id}_content_{getattr(p, 'id', p)}")])
-    rows.append([InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="schedule_back")])
+    rows.append([
+        InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="schedule_back"),
+        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
