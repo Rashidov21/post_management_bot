@@ -5,7 +5,6 @@ Reply keyboards for user and admin flows.
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from bot.texts import (
-    BTN_USER_WRITE,
     BTN_USER_ADMINS,
     BTN_HELP,
     BTN_HISTORY,
@@ -20,10 +19,10 @@ from bot.texts import (
 
 
 def user_main_keyboard() -> ReplyKeyboardMarkup:
-    """User: send message (lead) and admin list."""
+    """Oddiy user: faqat Adminlar ro'yxati. Xabar yozganda lead guruhiga tushadi."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_USER_WRITE), KeyboardButton(text=BTN_USER_ADMINS)],
+            [KeyboardButton(text=BTN_USER_ADMINS)],
         ],
         resize_keyboard=True,
     )

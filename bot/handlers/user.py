@@ -1,28 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-User-facing handlers: /start, private messages as leads, rate limit.
+User-facing handlers: /start, adminlar ro'yxati, private messages as leads (rate limit).
+Oddiy user: guruhdagi post ostidagi tugma orqali botga keladi, faqat Adminlar ro'yxati tugmasi, yozgan xabari lead guruhiga tushadi.
 """
 import html
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart, CommandObject, Filter
 
 from config import LEAD_RATE_LIMIT_PER_HOUR, is_owner
 from bot.texts import (
     WELCOME,
     WELCOME_USER_ONLY_VIA_GROUP,
-    USER_CONTACT_ONLY_VIA_GROUP,
     LEAD_SENT,
     LEAD_SENT_NO_GROUP,
     LEAD_RATE_LIMIT,
-    BTN_USER_WRITE,
     BTN_USER_ADMINS,
-    USER_WRITE_HINT,
-    USER_PICK_PRODUCT,
     USER_CONTACT_RECEIVED,
     USER_ADMINS_LIST_HEADER,
     BTN_HELP,
@@ -35,7 +31,7 @@ from bot.texts import (
     BTN_LEAD_GROUP,
     BTN_ADMINS,
 )
-from bot.services import user_service, leads_service, settings_service, admin_service, content_service
+from bot.services import user_service, leads_service, settings_service, admin_service
 from bot.keyboards.reply import user_main_keyboard, admin_main_keyboard
 
 logger = logging.getLogger(__name__)
@@ -133,44 +129,6 @@ async def cmd_start(message: Message) -> None:
     else:
         await message.answer(WELCOME_USER_ONLY_VIA_GROUP, reply_markup=user_main_keyboard())
         await _send_admin_list_to_user(message)
-
-
-@router.message(F.chat.type == "private", F.text == BTN_USER_WRITE, _NotAdminOrOwnerFilter())
-async def btn_user_write(message: Message) -> None:
-    """User pressed 'Xabar yuborish'. Agar guruhdagi post tugmasi orqali kirdi bo'lsa — to'g'ridan-to'g'ri xabar yozish; aks holda post tanlash."""
-    uid = message.from_user.id if message.from_user else 0
-    if uid in _lead_source_by_user:
-        # Guruhdagi post ostidagi "Adminlar bilan bog'lanish" orqali kirdi — shu post kontekstida xabar yozadi
-        await message.answer(USER_WRITE_HINT)
-        return
-    posts = await content_service.list_content(limit=15)
-    rows = []
-    for p in posts:
-        label = (p.caption or p.text or f"Post #{p.id}")[:40].strip() or f"Post #{p.id}"
-        rows.append([InlineKeyboardButton(text=label, callback_data=f"choose_lead_post_{p.id}")])
-    rows.append([InlineKeyboardButton(text="📋 Umumiy savol", callback_data="choose_lead_post_0")])
-    kb = InlineKeyboardMarkup(inline_keyboard=rows)
-    await message.answer(USER_PICK_PRODUCT, reply_markup=kb)
-
-
-@router.callback_query(F.data.regexp(re.compile(r"^choose_lead_post_(0|\d+)$")), F.chat.type == "private")
-async def cb_choose_lead_post(callback: CallbackQuery) -> None:
-    """User chose product for lead — saqlaymiz, keyingi xabar lead guruhiga yuboriladi."""
-    uid = callback.from_user.id if callback.from_user else 0
-    if is_owner(uid) or await admin_service.is_admin(uid):
-        await callback.answer()
-        return
-    match = re.match(r"^choose_lead_post_(0|\d+)$", callback.data or "")
-    if not match:
-        await callback.answer()
-        return
-    content_id = int(match.group(1))
-    if content_id > 0:
-        _lead_source_by_user[uid] = content_id
-    else:
-        _lead_source_by_user.pop(uid, None)
-    await callback.message.edit_text(USER_WRITE_HINT)
-    await callback.answer()
 
 
 @router.message(F.chat.type == "private", F.text == BTN_USER_ADMINS, _NotAdminOrOwnerFilter())
