@@ -18,6 +18,7 @@ from aiogram.types import ErrorEvent
 from config import BOT_TOKEN, LOG_LEVEL, LOG_FORMAT, SCHEDULER_TIMEZONE, validate_config
 from bot.database import init_db, open_app_connection, close_app_connection
 from bot.scheduler.posting import post_scheduled_content
+from bot.scheduler import runner as scheduler_runner
 from bot.services import schedule_service, settings_service
 from bot.handlers import user, admin, owner
 from bot.middlewares.admin import AdminOnlyMiddleware, OwnerOnlyMiddleware
@@ -59,6 +60,7 @@ async def setup_scheduler(bot: Bot, bot_username: str) -> AsyncIOScheduler:
         )
 
     scheduler.start()
+    scheduler_runner.set_scheduler(scheduler)
     return scheduler
 
 

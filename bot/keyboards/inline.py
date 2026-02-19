@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.texts import (
     CONTACT_ADMIN_BUTTON,
     BTN_CONTACT_ADMINS_UNDER_POST,
-    TAKE_LEAD,
+    TAKE_LEAD,  # "Leadni olish" — lead actions keyboard da
     BTN_ADMIN_LIST,
     BTN_ADMIN_ADD_HINT,
     BTN_ADMIN_REMOVE_HINT,
@@ -66,21 +66,25 @@ async def contact_admin_keyboard() -> InlineKeyboardMarkup:
 
 
 def lead_actions_keyboard(lead_id: int, user_id: int, username: str | None) -> InlineKeyboardMarkup:
-    """Inline actions for lead in admin group: Reply and Chat."""
+    """Inline actions for lead in admin group: Javob berish, Leadni olish, Chatga o'tish."""
     url = f"https://t.me/{username}" if username else f"tg://user?id={user_id}"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✉️ Javob berish", callback_data=f"reply_lead_{lead_id}")],
+        [
+            InlineKeyboardButton(text="✉️ Javob berish", callback_data=f"reply_lead_{lead_id}"),
+            InlineKeyboardButton(text=TAKE_LEAD, callback_data=f"take_lead_{lead_id}"),
+        ],
         [InlineKeyboardButton(text="💬 Chatga o'tish", url=url)],
     ])
 
 
 def leads_list_keyboard(leads: list) -> InlineKeyboardMarkup:
-    """List of unanswered leads with Reply + Chat buttons."""
+    """List of unanswered leads: Reply, Leadni olish, Chat."""
     rows = []
     for lead in leads:
         url = f"tg://user?id={lead.telegram_user_id}"
         rows.append([
             InlineKeyboardButton(text=f"✉️ Reply #{lead.id}", callback_data=f"reply_lead_{lead.id}"),
+            InlineKeyboardButton(text=TAKE_LEAD, callback_data=f"take_lead_{lead.id}"),
             InlineKeyboardButton(text="💬 Chat", url=url),
         ])
     if not rows:

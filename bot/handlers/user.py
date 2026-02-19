@@ -17,6 +17,7 @@ from bot.texts import (
     WELCOME_USER_ONLY_VIA_GROUP,
     USER_CONTACT_ONLY_VIA_GROUP,
     LEAD_SENT,
+    LEAD_SENT_NO_GROUP,
     LEAD_RATE_LIMIT,
     BTN_USER_WRITE,
     BTN_USER_ADMINS,
@@ -223,7 +224,7 @@ async def private_message_as_lead(message: Message) -> None:
             source_content_id=source_content_id,
             phone_number=phone,
         )
-        await message.answer(LEAD_SENT)
+        await message.answer(LEAD_SENT_NO_GROUP)
         return
     lead = await leads_service.create_lead(
         user_id=user.id,
@@ -232,7 +233,7 @@ async def private_message_as_lead(message: Message) -> None:
         source_content_id=source_content_id,
         phone_number=phone,
     )
-    from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN
+    from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN, LEAD_SENT_FAILED
     from bot.keyboards.inline import lead_actions_keyboard
 
     # HTML rejimida yuboriladi — foydalanuvchi matnini escape qilish kerak
@@ -255,6 +256,7 @@ async def private_message_as_lead(message: Message) -> None:
             text=forward_text,
             reply_markup=lead_actions_keyboard(lead.id, message.from_user.id, message.from_user.username),
         )
+        await message.answer(LEAD_SENT)
     except Exception as e:
         logger.exception("Failed to forward lead to admin group: %s", e)
-    await message.answer(LEAD_SENT)
+        await message.answer(LEAD_SENT_FAILED)

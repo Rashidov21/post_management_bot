@@ -33,28 +33,42 @@ def parse_time(s: str) -> str | None:
     return None
 
 
-async def add_schedule(time_str: str) -> bool:
-    """Add a posting time. Returns False if invalid or duplicate."""
+async def add_schedule(time_str: str) -> Optional[int]:
+    """Add a posting time. Returns new schedule id, or None if invalid or duplicate."""
     normalized = parse_time(time_str)
     if not normalized:
-        return False
+        return None
     conn = get_db()
     async with conn.execute(
         "SELECT 1 FROM schedules WHERE time_str = ?", (normalized,)
     ) as cur:
         row = await cur.fetchone()
     if row:
-        return False  # duplicate
+        return None  # duplicate
     try:
-        await conn.execute(
+        cur = await conn.execute(
             "INSERT INTO schedules (time_str, enabled) VALUES (?, 1)",
             (normalized,),
         )
+        new_id = cur.lastrowid
         await conn.commit()
-        return True
+        return new_id
     except Exception:
         await conn.rollback()
-        return False
+        return None
+
+
+async def get_schedule_id_by_time_str(time_str: str) -> Optional[int]:
+    """Get schedule id by time string (e.g. 09:00). None if not found."""
+    normalized = parse_time(time_str)
+    if not normalized:
+        return None
+    conn = get_db()
+    async with conn.execute(
+        "SELECT id FROM schedules WHERE time_str = ?", (normalized,)
+    ) as cur:
+        row = await cur.fetchone()
+    return row["id"] if row else None
 
 
 async def remove_schedule(time_str: str) -> bool:

@@ -22,6 +22,12 @@ USER_CONTACT_ONLY_VIA_GROUP = (
 LEAD_SENT = (
     "Sizning xabaringiz adminlarga yuborildi. Tez orada aloqaga chiqishadi."
 )
+LEAD_SENT_NO_GROUP = (
+    "Xabar qabul qilindi. Lead guruhi hali sozlanmagan bo'lsa adminlar keyinroq ko'radi."
+)
+LEAD_SENT_FAILED = (
+    "Xabar qabul qilindi, lekin adminlar guruhiga yuborishda texnik xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring yoki adminlarga murojaat qiling."
+)
 LEAD_RATE_LIMIT = (
     "Juda ko'p xabar yubordingiz. Iltimos, biroz kutib qayta urinib ko'ring."
 )

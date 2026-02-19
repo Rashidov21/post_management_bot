@@ -286,18 +286,24 @@ async def admin_text_ignored_for_content(message: Message) -> None:
 # ---------- Schedule ----------
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_times\s+(.+)$", re.I)))
 async def cmd_set_times(message: Message) -> None:
-    """e.g. /set_times 09:00, 14:00, 18:00 - replace or add times."""
+    """e.g. /set_times 09:00, 14:00, 18:00 - add times (duplicates skipped). Yangi vaqtlar uchun scheduler job qo'shiladi."""
+    from bot.scheduler import runner as scheduler_runner
+
     match = message.text and re.match(r"^/set_times\s+(.+)$", message.text, re.I)
     if not match:
         return
     raw = match.group(1).strip()
     parts = [p.strip() for p in raw.replace(",", " ").split() if p.strip()]
     added = []
+    me = await message.bot.get_me()
+    bot_username = me.username or ""
     for p in parts:
         t = schedule_service.parse_time(p)
         if t:
-            await schedule_service.add_schedule(t)
-            added.append(t)
+            schedule_id = await schedule_service.add_schedule(t)
+            if schedule_id is not None:
+                added.append(t)
+                scheduler_runner.add_schedule_job(message.bot, bot_username, schedule_id, t)
     if added:
         times_str = ", ".join(await _format_times())
         await message.answer(
@@ -731,15 +737,20 @@ async def _send_schedule_message(target, reply_markup=None):
 
 @router.callback_query(F.data.regexp(re.compile(r"^del_time_(.+)$")))
 async def cb_del_time(callback: CallbackQuery) -> None:
-    """Vaqtni o'chirish: del_time_09_00 -> 09:00."""
+    """Vaqtni o'chirish: del_time_09_00 -> 09:00. Scheduler dan ham job o'chiriladi."""
+    from bot.scheduler import runner as scheduler_runner
+
     match = callback.data and re.match(r"^del_time_(.+)$", callback.data)
     if not match:
         await callback.answer()
         return
     time_encoded = match.group(1)
     time_str = time_encoded.replace("_", ":", 1)
+    schedule_id = await schedule_service.get_schedule_id_by_time_str(time_str)
     ok = await schedule_service.remove_schedule(time_str)
     if ok:
+        if schedule_id is not None:
+            scheduler_runner.remove_schedule_job(schedule_id)
         await callback.answer(SCHEDULE_REMOVED.format(time_str))
         await _send_schedule_message(callback)
     else:
@@ -809,6 +820,8 @@ async def cb_schedule_hour(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.regexp(re.compile(r"^sch_m_(\d{2})$")))
 async def cb_schedule_minute(callback: CallbackQuery) -> None:
+    from bot.scheduler import runner as scheduler_runner
+
     match = callback.data and re.match(r"^sch_m_(\d{2})$", callback.data)
     if not match:
         await callback.answer()
@@ -821,8 +834,11 @@ async def cb_schedule_minute(callback: CallbackQuery) -> None:
         return
     hour = pending["hour"]
     time_str = f"{hour:02d}:{minute_str}"
-    ok = await schedule_service.add_schedule(time_str)
-    if ok:
+    schedule_id = await schedule_service.add_schedule(time_str)
+    if schedule_id is not None:
+        me = await callback.bot.get_me()
+        bot_username = me.username or ""
+        scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
         await callback.answer(SCHEDULE_TIME_ADDED)
         await _send_schedule_message(callback)
     else:
