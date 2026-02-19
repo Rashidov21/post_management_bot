@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.texts import (
     CONTACT_ADMIN_BUTTON,
+    BTN_CONTACT_ADMINS_UNDER_POST,
     TAKE_LEAD,
     BTN_ADMIN_LIST,
     BTN_ADMIN_ADD_HINT,
@@ -28,6 +29,17 @@ from bot.texts import (
     BTN_PUBLISHING_OFF,
     BTN_NAV_HOME,
 )
+
+
+def contact_bot_for_post_keyboard(bot_username: str, content_id: int) -> InlineKeyboardMarkup:
+    """
+    Guruhdagi post ostida: bitta tugma — botga ?start=post_<id> orqali.
+    User shu post kontekstida xabar yozadi, adminlar guruhida qaysi post ekani ko'rinadi.
+    """
+    url = f"https://t.me/{bot_username}?start=post_{content_id}"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_CONTACT_ADMINS_UNDER_POST, url=url)],
+    ])
 
 
 async def contact_admin_keyboard() -> InlineKeyboardMarkup:

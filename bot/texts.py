@@ -119,8 +119,9 @@ LEAD_SOURCE_UNKNOWN = "noma'lum"
 LEAD_TAKEN = "Lead sizga biriktirildi. Foydalanuvchiga javob yozing."
 LEAD_ALREADY_TAKEN = "Bu leadni boshqa admin allaqachon oldi."
 
-# Inline when bot posts in group
+# Inline when bot posts in group (guruhdagi post ostida — botga post konteksti bilan)
 CONTACT_ADMIN_BUTTON = "Admin bilan bog'lanish"
+BTN_CONTACT_ADMINS_UNDER_POST = "📩 Adminlar bilan bog'lanish"
 
 # Reply / Inline button labels
 BTN_USER_WRITE = "📩 Xabar yuborish"
@@ -160,8 +161,9 @@ PUBLISHING_DISABLED = "Nashr o'chirilgan"
 BTN_PUBLISHING_ON = "Nashr yoqish"
 BTN_PUBLISHING_OFF = "Nashr o'chirish"
 USER_WRITE_HINT = "Quyida xabaringizni yozing — adminlar ko'radi va javob beradi."
+USER_PICK_PRODUCT = "Qaysi mahsulot (post) haqida yozmoqchisiz? Quyidagilardan birini tanlang yoki «Umumiy savol» ni bosing."
 USER_CONTACT_RECEIVED = "Raqam qabul qilindi. Endi xabaringizni yuboring."
-USER_ADMINS_LIST_HEADER = "Adminlar bilan bog'lanish uchun quyidagi tugma orqali xabar yuboring."
+USER_ADMINS_LIST_HEADER = "Adminlar bilan bog'lanish uchun quyidagi tugmalar orqali chatga o'ting."
 BTN_NAV_BACK = "◀️ Orqaga"
 BTN_NAV_HOME = "🏠 Bosh menyu"
 BTN_NAV_REFRESH = "🔄 Yangilash"
