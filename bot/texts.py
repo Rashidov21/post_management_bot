@@ -28,6 +28,11 @@ LEAD_SENT_NO_GROUP = (
 LEAD_SENT_FAILED = (
     "Xabar qabul qilindi, lekin adminlar guruhiga yuborishda texnik xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring yoki adminlarga murojaat qiling."
 )
+# Oddiy user xabar yozganda standart javob: xabar qabul qilindi + adminlar ro'yxati
+LEAD_REPLY_STANDARD = (
+    "Xabaringiz qabul qilindi. Mahsulot haqida batafsil ma'lumot olish uchun adminlarimiz bilan bog'laning.\n\n"
+    "Quyida adminlar ro'yxati:"
+)
 LEAD_RATE_LIMIT = (
     "Juda ko'p xabar yubordingiz. Iltimos, biroz kutib qayta urinib ko'ring."
 )
@@ -122,6 +127,8 @@ LEAD_FORWARD_TEMPLATE = (
     "📌 Manba post: {source}"
 )
 LEAD_SOURCE_UNKNOWN = "noma'lum"
+# Post ostidagi tugmani bosganda lead matnida ko'rsatiladigan izoh
+LEAD_CLICKED_BUTTON_TEXT = "Post ostidagi «Adminlar bilan bog'lanish» tugmasi orqali botga kirdi."
 LEAD_TAKEN = "Lead sizga biriktirildi. Foydalanuvchiga javob yozing."
 LEAD_ALREADY_TAKEN = "Bu leadni boshqa admin allaqachon oldi."
 

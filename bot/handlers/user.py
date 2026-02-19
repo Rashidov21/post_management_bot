@@ -15,8 +15,6 @@ from config import LEAD_RATE_LIMIT_PER_HOUR, is_owner
 from bot.texts import (
     WELCOME,
     WELCOME_USER_ONLY_VIA_GROUP,
-    LEAD_SENT,
-    LEAD_SENT_NO_GROUP,
     LEAD_RATE_LIMIT,
     BTN_USER_ADMINS,
     USER_CONTACT_RECEIVED,
@@ -69,13 +67,14 @@ class _NotAdminOrOwnerFilter(Filter):
 
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_deep(message: Message, command: CommandObject = None) -> None:
-    """Start with optional ?start=post_123 for lead source."""
-    await user_service.get_or_create_user(
+    """Start with optional ?start=post_123 — user yaratiladi, post link bo'lsa lead saqlanadi va lead guruhiga yuboriladi."""
+    user = await user_service.get_or_create_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
         first_name=message.from_user.first_name,
         last_name=message.from_user.last_name,
     )
+    cid = None
     if command and command.args and command.args.startswith("post_"):
         try:
             cid = int(command.args.split("_", 1)[1])
@@ -86,6 +85,42 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
     uid = message.from_user.id if message.from_user else 0
     user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
+    # Post ostidagi tugmani bosgan oddiy user: darhol lead qilib saqlash va lead guruhiga yuborish
+    if not user_is_owner and not is_admin_user and cid is not None and cid > 0:
+        from bot.texts import LEAD_FORWARD_TEMPLATE, LEAD_SOURCE_UNKNOWN, LEAD_CLICKED_BUTTON_TEXT
+        from bot.keyboards.inline import lead_actions_keyboard
+
+        lead = await leads_service.create_lead(
+            user_id=user.id,
+            telegram_user_id=message.from_user.id,
+            message_text=LEAD_CLICKED_BUTTON_TEXT,
+            source_content_id=cid,
+            phone_number=None,
+        )
+        admin_group_id = await settings_service.get_admin_group_id()
+        if admin_group_id:
+            name = html.escape((message.from_user.full_name or "—"))
+            username = html.escape((message.from_user.username or "—"))
+            source_str = f"#{cid}"
+            text_escaped = html.escape(LEAD_CLICKED_BUTTON_TEXT)
+            forward_text = LEAD_FORWARD_TEMPLATE.format(
+                name=name,
+                username=username,
+                user_id=message.from_user.id,
+                phone="—",
+                text=text_escaped,
+                source=source_str,
+            )
+            try:
+                await message.bot.send_message(
+                    chat_id=admin_group_id,
+                    text=forward_text,
+                    reply_markup=lead_actions_keyboard(
+                        lead.id, message.from_user.id, message.from_user.username
+                    ),
+                )
+            except Exception as e:
+                logger.exception("Failed to forward post-click lead to admin group: %s", e)
     if user_is_owner or is_admin_user:
         await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
     else:
@@ -106,6 +141,26 @@ async def _send_admin_list_to_user(message: Message) -> None:
             uname = getattr(a, "username", None)
             url = f"https://t.me/{uname}" if uname else f"tg://user?id={a.telegram_id}"
             # ID ko'rsatilmasin — faqat ism yoki @username yoki "Chat"
+            label = (name or (f"@{uname}" if uname else f"Admin {idx}"))[:32]
+            kb_rows.append([InlineKeyboardButton(text=f"💬 Chat — {label}", url=url)])
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows) if kb_rows else None
+    await message.answer(text, reply_markup=kb)
+
+
+async def _send_standard_lead_reply(message: Message) -> None:
+    """Oddiy user xabar yozganda: standart javob — xabar qabul qilindi + mahsulot haqida adminlar bilan bog'laning + adminlar ro'yxati (chat tugmalari)."""
+    from bot.texts import LEAD_REPLY_STANDARD
+
+    admins = await admin_service.list_admins()
+    kb_rows = []
+    if not admins:
+        text = LEAD_REPLY_STANDARD + "\n\n(Adminlar ro'yxati hozircha bo'sh.)"
+    else:
+        text = LEAD_REPLY_STANDARD + "\n\nQuyidagi tugmalar orqali chatga o'ting."
+        for idx, a in enumerate(admins, start=1):
+            name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])).strip()
+            uname = getattr(a, "username", None)
+            url = f"https://t.me/{uname}" if uname else f"tg://user?id={a.telegram_id}"
             label = (name or (f"@{uname}" if uname else f"Admin {idx}"))[:32]
             kb_rows.append([InlineKeyboardButton(text=f"💬 Chat — {label}", url=url)])
     kb = InlineKeyboardMarkup(inline_keyboard=kb_rows) if kb_rows else None
@@ -182,7 +237,7 @@ async def private_message_as_lead(message: Message) -> None:
             source_content_id=source_content_id,
             phone_number=phone,
         )
-        await message.answer(LEAD_SENT_NO_GROUP)
+        await _send_standard_lead_reply(message)
         return
     lead = await leads_service.create_lead(
         user_id=user.id,
@@ -214,7 +269,7 @@ async def private_message_as_lead(message: Message) -> None:
             text=forward_text,
             reply_markup=lead_actions_keyboard(lead.id, message.from_user.id, message.from_user.username),
         )
-        await message.answer(LEAD_SENT)
+        await _send_standard_lead_reply(message)
     except Exception as e:
         logger.exception("Failed to forward lead to admin group: %s", e)
-        await message.answer(LEAD_SENT_FAILED)
+        await _send_standard_lead_reply(message)
