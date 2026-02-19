@@ -48,6 +48,7 @@ from bot.texts import (
     BTN_SCHEDULE,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
+    BTN_ADMINS,
 )
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
@@ -82,6 +83,8 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
 })
+# Lead reply handler bu tugmalarni yutmasin — Adminlar / Lead guruhi va b. o'z handlerlariga tushishi kerak
+_REPLY_IGNORE_TEXTS = _ADMIN_BUTTON_TEXTS | frozenset({BTN_ADMINS})
 
 
 def _admin_kb(message: Message):
@@ -891,12 +894,17 @@ async def cb_reply_lead(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.message(F.chat.type == "private", F.text, F.text.len() > 0)
+@router.message(
+    F.chat.type == "private",
+    F.text,
+    F.text.len() > 0,
+    F.text.filter(lambda t: t not in _REPLY_IGNORE_TEXTS),
+)
 async def admin_reply_to_lead_text(message: Message) -> None:
     """Agar admin leadga javob kiritayotgan bo'lsa, foydalanuvchiga yuborish."""
     uid = message.from_user.id if message.from_user else 0
     if uid not in _lead_reply_pending:
-        return  # boshqa handlerlarga ketadi
+        return
     lead_id = _lead_reply_pending.pop(uid, None)
     if not lead_id:
         return
