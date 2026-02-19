@@ -230,6 +230,8 @@ def confirm_admin_group_keyboard() -> InlineKeyboardMarkup:
     """After lead group ID entered: Guruhni belgilash."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_CONFIRM_ADMIN_GROUP, callback_data="confirm_admin_group")],
+        [InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_admin_group")],
+        [InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home")],
     ])
 
 

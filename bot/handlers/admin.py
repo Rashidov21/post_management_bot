@@ -6,6 +6,7 @@ import logging
 import re
 
 from aiogram import Router, F
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Filter
@@ -940,7 +941,9 @@ async def cmd_set_admin_group_id_private(message: Message) -> None:
 async def cmd_set_admin_group_private(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _admin_group_awaiting.add(uid)
-    await message.answer(ADMIN_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
+    current = await settings_service.get_admin_group_id()
+    info = f"Joriy lead guruhi: {current}" if current else "Lead guruhi hali belgilanmagan."
+    await message.answer(f"{info}\n\n{ADMIN_GROUP_PROMPT_ID}", reply_markup=_admin_kb(message))
 
 
 @router.callback_query(F.data == "confirm_admin_group")
@@ -952,6 +955,21 @@ async def cb_confirm_admin_group(callback: CallbackQuery) -> None:
         await callback.answer(ADMIN_GROUP_SET)
     else:
         await callback.answer()
+
+
+@router.callback_query(F.data == "cancel_admin_group")
+async def cb_cancel_admin_group(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    _admin_group_pending.pop(uid, None)
+    _admin_group_awaiting.discard(uid)
+    await callback.answer("Bekor qilindi.")
+
+
+@router.callback_query(F.data == "cancel_admin_add")
+async def cb_cancel_admin_add(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    _admin_add_awaiting.discard(uid)
+    await callback.answer("Bekor qilindi.")
 
 
 # ---------- Take lead callback (admin group) ----------
@@ -1038,7 +1056,11 @@ async def cb_admin_help_add(callback: CallbackQuery) -> None:
         await callback.answer("Faqat egasi.", show_alert=True)
         return
     _admin_add_awaiting.add(callback.from_user.id)
-    await callback.message.edit_text(ADMIN_ADD_PROMPT)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_admin_add")],
+        [InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="nav_home")],
+    ])
+    await callback.message.edit_text(ADMIN_ADD_PROMPT, reply_markup=kb)
     await callback.answer()
 
 
@@ -1049,5 +1071,9 @@ async def cb_admin_help_remove(callback: CallbackQuery) -> None:
     if not is_owner(callback.from_user.id or 0):
         await callback.answer("Faqat egasi.", show_alert=True)
         return
-    await callback.message.edit_text(REPLY_TO_REMOVE_ADMIN)
+    await callback.message.edit_text(REPLY_TO_REMOVE_ADMIN, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="nav_home")],
+        ]
+    ))
     await callback.answer()
