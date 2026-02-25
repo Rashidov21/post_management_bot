@@ -17,8 +17,6 @@ from bot.texts import (
     BTN_HISTORY_BACK,
     BTN_INLINE_HISTORY,
     BTN_INLINE_SCHEDULE,
-    BTN_INLINE_POST_ON,
-    BTN_INLINE_POST_OFF,
     BTN_CONFIRM_TARGET_GROUP,
     BTN_CONFIRM_ADMIN_GROUP,
     BTN_POST_CONFIRM,
@@ -258,15 +256,11 @@ def post_add_confirm_keyboard() -> InlineKeyboardMarkup:
 
 
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
-    """Admin/Owner: asosiy amallar — Postlar tarixi, Nashr vaqtlari, Yoqish/O'chirish."""
+    """Admin/Owner: asosiy amallar — Postlar tarixi, Nashr vaqtlari, Leadlar."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text=BTN_INLINE_HISTORY, callback_data="inline_history"),
             InlineKeyboardButton(text=BTN_INLINE_SCHEDULE, callback_data="inline_schedule"),
-        ],
-        [
-            InlineKeyboardButton(text=BTN_INLINE_POST_ON, callback_data="cb_post_on"),
-            InlineKeyboardButton(text=BTN_INLINE_POST_OFF, callback_data="cb_post_off"),
         ],
         [
             InlineKeyboardButton(text="🧾 Leadlar", callback_data="inline_leads"),

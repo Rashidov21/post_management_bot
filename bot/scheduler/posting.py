@@ -15,10 +15,8 @@ logger = logging.getLogger(__name__)
 async def post_scheduled_content(bot: Bot, bot_username: str, schedule_id: int) -> None:
     """
     At this schedule time: post the content assigned to this schedule_id.
-    If no content assigned, or posting disabled, or content publishing_enabled=0, skip.
+    If no content assigned, or content publishing_enabled=0, skip.
     """
-    if not await settings_service.is_posting_enabled():
-        return
     target_group_id = await settings_service.get_target_group_id()
     if not target_group_id:
         logger.warning("Target group not set, skipping scheduled post")

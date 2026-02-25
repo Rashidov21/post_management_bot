@@ -6,8 +6,8 @@ Bot static messages in Uzbek.
 # Common
 WELCOME = (
     "Assalomu alaykum! Botimizga xush kelibsiz.\n\n"
-    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
-    "Quyidagi adminlar ro'yxati va tugmalar orqali xabar yuborishingiz mumkin."
+    "Qaysi mahsulotga qiziqish bildirganingiz adminlarga yuborildi. ",
+    "Tez orada aloqaga chiqishadi."
 )
 # Oddiy user guruh posti orqali kirmaganda (faqat /start)
 WELCOME_USER_ONLY_VIA_GROUP = (
@@ -53,8 +53,6 @@ HELP_GUIDE = (
 CMD_START = "/start - Boshlash"
 CMD_HELP = "/help - Yordam"
 CMD_SET_TIMES = "/set_times - Nashr vaqtlarini sozlash (masalan: 09:00, 14:00, 18:00)"
-CMD_POST_ON = "/post_on - Kunlik nashrni yoqish"
-CMD_POST_OFF = "/post_off - Kunlik nashrni o'chirish"
 CMD_HISTORY = "/history - Postlar tarixi"
 CMD_DELETE_POST = "/delete_post - Postni o'chirish (ID orqali)"
 CMD_ACTIVATE_POST = "/activate_post (id) - Postni qayta aktiv qilish"
@@ -66,8 +64,6 @@ CMD_ADD_ADMIN = "/add_admin - Admin qo'shish (faqat egasi)"
 CMD_REMOVE_ADMIN = "/remove_admin - Adminni olib tashlash (faqat egasi)"
 CMD_LIST_ADMINS = "/list_admins - Adminlar ro'yxati (faqat egasi)"
 
-POSTING_ON = "Post joylash yoqildi."
-POSTING_OFF = "Post joylash o'chirildi."
 TIMES_SET = "Nashr vaqtlari yangilandi."
 TARGET_GROUP_SET = "Nashr guruhi o'rnatildi."
 TARGET_GROUP_PROMPT_ID = "Nashr guruhi ID sini kiriting (masalan -1001234567890):"
@@ -140,8 +136,6 @@ BTN_CONTACT_ADMINS_UNDER_POST = "📩 Adminlar bilan bog'lanish"
 BTN_USER_WRITE = "📩 Xabar yuborish"
 BTN_HELP = "📋 Yordam"
 BTN_HISTORY = "📜 Postlar tarixi"
-BTN_POST_ON = "✅ Post joylashni yoqish"
-BTN_POST_OFF = "❌ Post joylashni o'chirish"
 BTN_SCHEDULE = "⏰ Post vaqtlari"
 BTN_TARGET_GROUP = "📢 Nashr guruhi"
 BTN_LEAD_GROUP = "👥 Lead guruhi"
@@ -155,8 +149,6 @@ BTN_REFRESH_HISTORY = "🔄 Yangilash"
 BTN_ADD_TIME = "➕ Vaqt qo'shish"
 BTN_INLINE_HISTORY = "📜 Postlar tarixi"
 BTN_INLINE_SCHEDULE = "⏰ Nashr vaqtlari"
-BTN_INLINE_POST_ON = "✅ Joylashni yoqish"
-BTN_INLINE_POST_OFF = "❌ Joylashni o'chirish"
 SCHEDULE_ADD_TIME_HINT = "Post joylash uchun yangi vaqtni 09:00 formatida yuboring yoki /set_times 09:00 12:00 buyrug'ini ishlating."
 BTN_POST_NOW = "Hozir joylash"
 POST_NOW_SUCCESS = "Post guruhga yuborildi."

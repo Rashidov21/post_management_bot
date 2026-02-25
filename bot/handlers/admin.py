@@ -13,10 +13,10 @@ from aiogram.filters import Filter
 
 from bot.texts import (
     HELP_HEADER, HELP_GUIDE,
-    CMD_START, CMD_HELP, CMD_SET_TIMES, CMD_POST_ON, CMD_POST_OFF,
+    CMD_START, CMD_HELP, CMD_SET_TIMES,
     CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
     CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
-    POSTING_ON, POSTING_OFF, TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
+    TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     GROUP_ID_SHOULD_BE_NEGATIVE,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, HISTORY_CAPTION_LABEL, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
@@ -43,8 +43,6 @@ from bot.texts import (
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
-    BTN_POST_ON,
-    BTN_POST_OFF,
     BTN_SCHEDULE,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
@@ -78,8 +76,6 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
-    BTN_POST_ON,
-    BTN_POST_OFF,
     BTN_SCHEDULE,
     BTN_TARGET_GROUP,
     BTN_LEAD_GROUP,
@@ -138,8 +134,6 @@ def _help_text() -> str:
         CMD_START,
         CMD_HELP,
         CMD_SET_TIMES,
-        CMD_POST_ON,
-        CMD_POST_OFF,
         CMD_HISTORY,
         CMD_DELETE_POST,
         CMD_ACTIVATE_POST,
@@ -351,20 +345,6 @@ async def cmd_set_times(message: Message) -> None:
 async def _format_times() -> list:
     schedules = await schedule_service.list_schedules()
     return [s.time_str for s in schedules]
-
-
-@router.message(F.chat.type == "private", F.text == "/post_on")
-@router.message(F.chat.type == "private", F.text == BTN_POST_ON)
-async def cmd_post_on(message: Message) -> None:
-    await settings_service.set_posting_enabled(True)
-    await message.answer(POSTING_ON, reply_markup=_admin_kb(message))
-
-
-@router.message(F.chat.type == "private", F.text == "/post_off")
-@router.message(F.chat.type == "private", F.text == BTN_POST_OFF)
-async def cmd_post_off(message: Message) -> None:
-    await settings_service.set_posting_enabled(False)
-    await message.answer(POSTING_OFF, reply_markup=_admin_kb(message))
 
 
 # ---------- History & delete ----------
@@ -877,18 +857,6 @@ async def cb_schedule_minute(callback: CallbackQuery) -> None:
         await _send_schedule_message(callback)
     else:
         await callback.answer(SCHEDULE_INVALID)
-
-
-@router.callback_query(F.data == "cb_post_on")
-async def cb_post_on(callback: CallbackQuery) -> None:
-    await settings_service.set_posting_enabled(True)
-    await callback.answer(POSTING_ON)
-
-
-@router.callback_query(F.data == "cb_post_off")
-async def cb_post_off(callback: CallbackQuery) -> None:
-    await settings_service.set_posting_enabled(False)
-    await callback.answer(POSTING_OFF)
 
 
 @router.callback_query(F.data == "inline_history")
