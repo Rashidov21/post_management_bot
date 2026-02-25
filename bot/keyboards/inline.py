@@ -223,10 +223,13 @@ def schedule_hour_keyboard() -> InlineKeyboardMarkup:
 
 
 def schedule_minute_keyboard() -> InlineKeyboardMarkup:
-    """Minut tanlash: 00, 15, 30, 45 — callback sch_m_00, sch_m_15, …"""
-    minutes = ("00", "15", "30", "45")
-    row = [InlineKeyboardButton(text=m, callback_data=f"sch_m_{m}") for m in minutes]
-    return InlineKeyboardMarkup(inline_keyboard=[row])
+    """Minut tanlash: 00–59 — callback sch_m_00 … sch_m_59 (6 tugma qatorda)."""
+    minutes = [f"{m:02d}" for m in range(60)]
+    rows = []
+    for i in range(0, 60, 6):
+        row = [InlineKeyboardButton(text=m, callback_data=f"sch_m_{m}") for m in minutes[i : i + 6]]
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def confirm_target_group_keyboard() -> InlineKeyboardMarkup:
@@ -269,10 +272,13 @@ def post_add_schedule_hour_keyboard() -> InlineKeyboardMarkup:
 
 
 def post_add_schedule_minute_keyboard() -> InlineKeyboardMarkup:
-    """Post qo'shish: nashr minutlari — post_time_m_00, 15, 30, 45."""
-    minutes = ("00", "15", "30", "45")
-    row = [InlineKeyboardButton(text=m, callback_data=f"post_time_m_{m}") for m in minutes]
-    return InlineKeyboardMarkup(inline_keyboard=[row])
+    """Post qo'shish: nashr minutlari 00–59 — post_time_m_00 … post_time_m_59 (6 tugma qatorda)."""
+    minutes = [f"{m:02d}" for m in range(60)]
+    rows = []
+    for i in range(0, 60, 6):
+        row = [InlineKeyboardButton(text=m, callback_data=f"post_time_m_{m}") for m in minutes[i : i + 6]]
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
