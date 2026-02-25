@@ -175,45 +175,26 @@ async def btn_add_post(message: Message) -> None:
 @router.message(F.chat.type == "private", F.photo)
 async def admin_save_photo(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if uid in _post_add_waiting_media:
-        _post_add_waiting_media.discard(uid)
-        photo = message.photo[-1]
-        _post_add_pending[uid] = {
-            "content_type": "photo",
-            "file_id": photo.file_id,
-            "caption": (message.caption or "").strip(),
-        }
-        await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
-        return
+    _post_add_waiting_media.discard(uid)
     photo = message.photo[-1]
-    content = await content_service.add_content(
-        content_type="photo",
-        created_by=uid,
-        file_id=photo.file_id,
-        caption=message.caption,
-    )
-    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
+    _post_add_pending[uid] = {
+        "content_type": "photo",
+        "file_id": photo.file_id,
+        "caption": (message.caption or "").strip(),
+    }
+    await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
 
 
 @router.message(F.chat.type == "private", F.video)
 async def admin_save_video(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if uid in _post_add_waiting_media:
-        _post_add_waiting_media.discard(uid)
-        _post_add_pending[uid] = {
-            "content_type": "video",
-            "file_id": message.video.file_id,
-            "caption": (message.caption or "").strip(),
-        }
-        await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
-        return
-    content = await content_service.add_content(
-        content_type="video",
-        created_by=uid,
-        file_id=message.video.file_id,
-        caption=message.caption,
-    )
-    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
+    _post_add_waiting_media.discard(uid)
+    _post_add_pending[uid] = {
+        "content_type": "video",
+        "file_id": message.video.file_id,
+        "caption": (message.caption or "").strip(),
+    }
+    await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
 
 
 @router.message(F.chat.type == "private", F.text, _PostAddPendingFilter())
