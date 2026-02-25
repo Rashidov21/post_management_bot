@@ -46,16 +46,6 @@ async def add_content(
     return _row_to_content(row)
 
 
-async def get_active_content() -> Optional[Content]:
-    """Get the single active content for reposting. None if none or all deleted."""
-    conn = get_db()
-    async with conn.execute(
-        "SELECT * FROM content WHERE status = 'active' ORDER BY id DESC LIMIT 1"
-    ) as cur:
-        row = await cur.fetchone()
-    return _row_to_content(row) if row else None
-
-
 async def get_content_by_id(content_id: int) -> Optional[Content]:
     conn = get_db()
     async with conn.execute("SELECT * FROM content WHERE id = ?", (content_id,)) as cur:
@@ -80,42 +70,18 @@ async def list_content(limit: int = 50, include_deleted: bool = False) -> List[C
     return [_row_to_content(r) for r in rows]
 
 
-async def list_all_posts_for_history(limit: int = 50) -> List[Content]:
-    """List all content (active + deleted) for history view."""
-    conn = get_db()
-    async with conn.execute(
-        "SELECT * FROM content ORDER BY created_at DESC LIMIT ?", (limit,)
-    ) as cur:
-        rows = await cur.fetchall()
-    return [_row_to_content(r) for r in rows]
-
-
 async def delete_content(content_id: int) -> bool:
-    """Soft-delete: set status to deleted. Returns True if found and updated."""
-    conn = get_db()
-    cur = await conn.execute(
-        "UPDATE content SET status = 'deleted' WHERE id = ? AND status = 'active'",
-        (content_id,),
-    )
-    # Clean up schedule bindings so deleted posts are not scheduled
-    await conn.execute("DELETE FROM content_schedule WHERE content_id = ?", (content_id,))
-    await conn.commit()
-    return cur.rowcount > 0
-
-
-async def set_content_active(content_id: int) -> bool:
-    """Set this content as active (does not deactivate others). Returns True if content existed and was updated."""
+    """Hard-delete: remove from DB (content_schedule, posts_log, content). Returns True if content existed and was deleted."""
     conn = get_db()
     async with conn.execute("SELECT id FROM content WHERE id = ?", (content_id,)) as cur:
         row = await cur.fetchone()
     if not row:
         return False
-    cur = await conn.execute(
-        "UPDATE content SET status = 'active' WHERE id = ?",
-        (content_id,),
-    )
+    await conn.execute("DELETE FROM content_schedule WHERE content_id = ?", (content_id,))
+    await conn.execute("DELETE FROM posts_log WHERE content_id = ?", (content_id,))
+    await conn.execute("DELETE FROM content WHERE id = ?", (content_id,))
     await conn.commit()
-    return cur.rowcount > 0
+    return True
 
 
 async def set_content_publishing_enabled(content_id: int, enabled: bool) -> bool:

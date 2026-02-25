@@ -95,79 +95,13 @@ def history_delete_keyboard(content_id: int) -> InlineKeyboardMarkup:
 
 
 def history_refresh_keyboard() -> InlineKeyboardMarkup:
-    """Under history list: refresh button."""
+    """Under history: Yangilash va Bosh menyu."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history")],
+        [
+            InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history"),
+            InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
+        ],
     ])
-
-
-def history_list_keyboard(posts: list) -> InlineKeyboardMarkup:
-    """Postlar ro'yxati: har bir post uchun 'Tanlash' (history_show_{id}), oxirida Yangilash."""
-    rows = []
-    for p in posts:
-        label = f"ID: {p.id} | {p.content_type} | {_short_date(p)}"
-        rows.append([InlineKeyboardButton(text=label, callback_data=f"history_show_{p.id}")])
-    rows.append([
-        InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history"),
-        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def _short_date(p) -> str:
-    """Short created_at for list button label (callback_data 64 byte limit)."""
-    ca = getattr(p, "created_at", None)
-    if ca is None:
-        return ""
-    if hasattr(ca, "strftime"):
-        return ca.strftime("%d.%m.%y")
-    return str(ca)[:10]
-
-
-def history_single_keyboard(post) -> InlineKeyboardMarkup:
-    """Bitta post uchun: Nashr yoqish/o'chirish, O'chirish/Aktivlashtirish, Hozir joylash, Orqaga."""
-    rows = []
-    enabled = getattr(post, "publishing_enabled", True)
-    if enabled:
-        rows.append([InlineKeyboardButton(text=BTN_PUBLISHING_OFF, callback_data=f"pub_off_{post.id}")])
-    else:
-        rows.append([InlineKeyboardButton(text=BTN_PUBLISHING_ON, callback_data=f"pub_on_{post.id}")])
-    if getattr(post, "status", None) == "active":
-        rows.append([
-            InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{post.id}"),
-            InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{post.id}"),
-        ])
-    else:
-        rows.append([
-            InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{post.id}"),
-            InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{post.id}"),
-        ])
-    rows.append([
-        InlineKeyboardButton(text=BTN_HISTORY_BACK, callback_data="history_back"),
-        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def history_actions_keyboard(posts: list) -> InlineKeyboardMarkup:
-    """Per-post actions: O'chirish/Aktivlashtirish, Hozir joylash; plus refresh."""
-    rows = []
-    for p in posts:
-        if getattr(p, "status", None) == "active":
-            rows.append([
-                InlineKeyboardButton(text="O'chirish", callback_data=f"del_post_{p.id}"),
-                InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{p.id}"),
-            ])
-        else:
-            rows.append([
-                InlineKeyboardButton(text="Aktivlashtirish", callback_data=f"activate_post_{p.id}"),
-                InlineKeyboardButton(text=BTN_POST_NOW, callback_data=f"post_now_{p.id}"),
-            ])
-    rows.append([
-        InlineKeyboardButton(text=BTN_REFRESH_HISTORY, callback_data="refresh_history"),
-        InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def schedule_keyboard(schedules: list) -> InlineKeyboardMarkup:

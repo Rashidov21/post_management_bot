@@ -14,12 +14,12 @@ from aiogram.filters import Filter
 from bot.texts import (
     HELP_HEADER, HELP_GUIDE,
     CMD_START, CMD_HELP, CMD_SET_TIMES,
-    CMD_HISTORY, CMD_DELETE_POST, CMD_ACTIVATE_POST, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
+    CMD_HISTORY, CMD_DELETE_POST, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
     CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
     TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     GROUP_ID_SHOULD_BE_NEGATIVE,
-    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, HISTORY_SINGLE_HEADER, HISTORY_CAPTION_LABEL, POST_DELETED, POST_ACTIVATED, POST_NOT_FOUND, POST_ALREADY_ACTIVE,
+    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     SCHEDULE_ADD_TIME_HINT,
     SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
@@ -53,9 +53,6 @@ from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
     history_refresh_keyboard,
     history_delete_keyboard,
-    history_actions_keyboard,
-    history_list_keyboard,
-    history_single_keyboard,
     schedule_keyboard,
     schedule_keyboard_with_posts,
     schedule_pick_post_keyboard,
@@ -143,7 +140,6 @@ def _help_text() -> str:
         CMD_SET_TIMES,
         CMD_HISTORY,
         CMD_DELETE_POST,
-        CMD_ACTIVATE_POST,
         CMD_ADD_TEXT,
         CMD_SET_TARGET_GROUP,
         CMD_SET_ADMIN_GROUP,
@@ -420,7 +416,7 @@ async def _send_history(target):
         except Exception:
             pass
     _history_message_ids[uid] = []
-    posts = await content_service.list_all_posts_for_history(limit=10)
+    posts = await content_service.list_content(limit=10, include_deleted=False)
     if not posts:
         msg = await bot.send_message(
             chat_id,
@@ -475,80 +471,6 @@ async def cb_refresh_history(callback: CallbackQuery) -> None:
     await callback.answer("Yangilandi.")
 
 
-@router.callback_query(F.data == "history_back")
-async def cb_history_back(callback: CallbackQuery) -> None:
-    await _send_history(callback)
-    await callback.answer()
-
-
-@router.callback_query(F.data.regexp(re.compile(r"^history_show_(\d+)$")))
-async def cb_history_show(callback: CallbackQuery) -> None:
-    match = callback.data and re.match(r"^history_show_(\d+)$", callback.data)
-    if not match:
-        await callback.answer()
-        return
-    cid = int(match.group(1))
-    post = await content_service.get_content_by_id(cid)
-    if not post:
-        await callback.answer(POST_NOT_FOUND)
-        return
-    last_posted = await content_service.get_last_posted_at_map([cid])
-    posted_str = _format_posted_at(last_posted.get(cid))
-    created_str = str(post.created_at) if post.created_at else "—"
-    text = HISTORY_SINGLE_HEADER.format(
-        id=post.id,
-        content_type=post.content_type,
-        created_at=created_str,
-        posted=posted_str,
-    )
-    caption_text = (post.caption or post.text or "").strip()
-    if caption_text:
-        text += f"\n\n{HISTORY_CAPTION_LABEL}\n{caption_text[:500]}"
-        if len(caption_text) > 500:
-            text += "…"
-    schedule_ids = await schedule_service.get_schedule_ids_for_content(cid)
-    time_strs = []
-    for sid in schedule_ids:
-        sch = await schedule_service.get_schedule_by_id(sid)
-        if sch:
-            time_strs.append(sch.time_str)
-    schedule_times_str = ", ".join(time_strs) if time_strs else "—"
-    text += f"\n\n{NASHR_TIMES_LABEL} {schedule_times_str}"
-    await callback.message.edit_text(text, reply_markup=history_single_keyboard(post))
-    await callback.answer()
-
-
-async def _refresh_history_single_message(callback: CallbackQuery, cid: int) -> None:
-    """Re-fetch post and schedule times, edit message to same single-post view."""
-    post = await content_service.get_content_by_id(cid)
-    if not post:
-        await callback.message.edit_text(POST_NOT_FOUND)
-        return
-    last_posted = await content_service.get_last_posted_at_map([cid])
-    posted_str = _format_posted_at(last_posted.get(cid))
-    created_str = str(post.created_at) if post.created_at else "—"
-    text = HISTORY_SINGLE_HEADER.format(
-        id=post.id,
-        content_type=post.content_type,
-        created_at=created_str,
-        posted=posted_str,
-    )
-    caption_text = (post.caption or post.text or "").strip()
-    if caption_text:
-        text += f"\n\n{HISTORY_CAPTION_LABEL}\n{caption_text[:500]}"
-        if len(caption_text) > 500:
-            text += "…"
-    schedule_ids = await schedule_service.get_schedule_ids_for_content(cid)
-    time_strs = []
-    for sid in schedule_ids:
-        sch = await schedule_service.get_schedule_by_id(sid)
-        if sch:
-            time_strs.append(sch.time_str)
-    schedule_times_str = ", ".join(time_strs) if time_strs else "—"
-    text += f"\n\n{NASHR_TIMES_LABEL} {schedule_times_str}"
-    await callback.message.edit_text(text, reply_markup=history_single_keyboard(post))
-
-
 @router.callback_query(F.data.regexp(re.compile(r"^pub_on_(\d+)$")))
 async def cb_pub_on(callback: CallbackQuery) -> None:
     match = callback.data and re.match(r"^pub_on_(\d+)$", callback.data)
@@ -559,7 +481,7 @@ async def cb_pub_on(callback: CallbackQuery) -> None:
     ok = await content_service.set_content_publishing_enabled(cid, True)
     if ok:
         await callback.answer("Nashr yoqildi.")
-        await _refresh_history_single_message(callback, cid)
+        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 
@@ -574,7 +496,7 @@ async def cb_pub_off(callback: CallbackQuery) -> None:
     ok = await content_service.set_content_publishing_enabled(cid, False)
     if ok:
         await callback.answer("Nashr o'chirildi.")
-        await _refresh_history_single_message(callback, cid)
+        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 
@@ -602,49 +524,6 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
     ok = await content_service.delete_content(cid)
     if ok:
         await callback.answer(POST_DELETED)
-        await _send_history(callback)
-    else:
-        await callback.answer(POST_NOT_FOUND)
-
-
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/activate_post\s+(\d+)$")))
-async def cmd_activate_post(message: Message) -> None:
-    """Set a deleted post as active again."""
-    match = message.text and re.match(r"^/activate_post\s+(\d+)$", message.text)
-    if not match:
-        return
-    cid = int(match.group(1))
-    content = await content_service.get_content_by_id(cid)
-    if not content:
-        await message.answer(POST_NOT_FOUND, reply_markup=_admin_kb(message))
-        return
-    if content.status == "active":
-        await message.answer(POST_ALREADY_ACTIVE, reply_markup=_admin_kb(message))
-        return
-    ok = await content_service.set_content_active(cid)
-    if ok:
-        await message.answer(POST_ACTIVATED, reply_markup=_admin_kb(message))
-    else:
-        await message.answer(POST_NOT_FOUND, reply_markup=_admin_kb(message))
-
-
-@router.callback_query(F.data.regexp(re.compile(r"^activate_post_(\d+)$")))
-async def cb_activate_post(callback: CallbackQuery) -> None:
-    match = callback.data and re.match(r"^activate_post_(\d+)$", callback.data)
-    if not match:
-        await callback.answer()
-        return
-    cid = int(match.group(1))
-    content = await content_service.get_content_by_id(cid)
-    if not content:
-        await callback.answer(POST_NOT_FOUND)
-        return
-    if content.status == "active":
-        await callback.answer(POST_ALREADY_ACTIVE)
-        return
-    ok = await content_service.set_content_active(cid)
-    if ok:
-        await callback.answer(POST_ACTIVATED)
         await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)

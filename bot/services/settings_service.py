@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 KEYS = {
     "target_group_id": "0",
     "admin_group_id": "0",  # group where leads are forwarded
-    "posting_enabled": "0",
     "banner_file_id": "",
 }
 
@@ -73,15 +72,6 @@ async def set_target_group_id(group_id: int) -> None:
 
 async def set_admin_group_id(group_id: int) -> None:
     await set_setting("admin_group_id", str(group_id))
-
-
-async def is_posting_enabled() -> bool:
-    raw = await get_setting("posting_enabled")
-    return raw == "1" or str(raw).lower() == "true"
-
-
-async def set_posting_enabled(enabled: bool) -> None:
-    await set_setting("posting_enabled", "1" if enabled else "0")
 
 
 async def get_banner_file_id() -> Optional[str]:
