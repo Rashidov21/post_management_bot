@@ -82,7 +82,7 @@ CONTENT_SAVED = "Kontent saqlandi va aktiv post sifatida belgilandi."
 NO_ACTIVE_CONTENT = "Aktiv post yo'q. Avval kontent yuboring (rasm, video yoki matn)."
 # Post qo'shish oqimi
 BTN_ADD_POST = "➕ Post qo'shish"
-POST_ADD_SEND_MEDIA = "Post uchun rasm yoki video yuboring."
+POST_ADD_SEND_MEDIA = "Post uchun rasm, video yoki matn yuboring."
 POST_ADD_SEND_CAPTION = "Matn (caption) yozing (ixtiyoriy) yoki «Yakunlash» tugmasini bosing."
 POST_ADD_CAPTION_ADDED = "Matn qo'shildi. «Yakunlash» tugmasini bosing."
 POST_ADD_SAVED = "Post saqlandi va aktiv post sifatida belgilandi."

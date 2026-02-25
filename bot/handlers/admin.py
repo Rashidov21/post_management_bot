@@ -53,6 +53,7 @@ from bot.texts import (
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
     history_refresh_keyboard,
+    history_delete_keyboard,
     history_actions_keyboard,
     history_list_keyboard,
     history_single_keyboard,
@@ -124,6 +125,13 @@ class _PostAddPendingFilter(Filter):
         return (message.from_user.id if message.from_user else 0) in _post_add_pending
 
 
+class _PostAddWaitingMediaFilter(Filter):
+    """True when user clicked Post qo'shish and is waiting to send photo/video/text."""
+
+    async def __call__(self, message: Message) -> bool:
+        return (message.from_user.id if message.from_user else 0) in _post_add_waiting_media
+
+
 def _help_text() -> str:
     lines = [
         HELP_HEADER,
@@ -177,13 +185,13 @@ async def admin_save_photo(message: Message) -> None:
         await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
         return
     photo = message.photo[-1]
-    await content_service.add_content(
+    content = await content_service.add_content(
         content_type="photo",
         created_by=uid,
         file_id=photo.file_id,
         caption=message.caption,
     )
-    await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
 
 
 @router.message(F.chat.type == "private", F.video)
@@ -198,13 +206,13 @@ async def admin_save_video(message: Message) -> None:
         }
         await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
         return
-    await content_service.add_content(
+    content = await content_service.add_content(
         content_type="video",
         created_by=uid,
         file_id=message.video.file_id,
         caption=message.caption,
     )
-    await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
 
 
 @router.message(F.chat.type == "private", F.text, _PostAddPendingFilter())
@@ -224,16 +232,23 @@ async def cb_confirm_post_add(callback: CallbackQuery) -> None:
     if not data:
         await callback.answer(POST_ADD_CANCELLED)
         return
-    await content_service.add_content(
-        content_type=data["content_type"],
-        created_by=uid,
-        file_id=data["file_id"],
-        caption=data.get("caption") or None,
-    )
+    if data["content_type"] == "text":
+        content = await content_service.add_content(
+            content_type="text",
+            created_by=uid,
+            text=data.get("text") or "",
+        )
+    else:
+        content = await content_service.add_content(
+            content_type=data["content_type"],
+            created_by=uid,
+            file_id=data.get("file_id"),
+            caption=data.get("caption") or None,
+        )
     await callback.answer(POST_ADD_SAVED)
     await callback.message.edit_text(
         (callback.message.text or "") + "\n\n" + POST_ADD_SAVED,
-        reply_markup=None,
+        reply_markup=history_delete_keyboard(content.id),
     )
 
 
@@ -248,6 +263,25 @@ async def cb_cancel_post_add(callback: CallbackQuery) -> None:
     )
 
 
+@router.message(
+    F.chat.type == "private",
+    F.text,
+    ~F.text.startswith("/"),
+    F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
+    _PostAddWaitingMediaFilter(),
+)
+async def admin_post_add_text(message: Message) -> None:
+    """Post qo'shish: faqat matn yuborilganda — pending ga qo'shish, Yakunlash/Bekor ko'rsatish."""
+    uid = message.from_user.id if message.from_user else 0
+    _post_add_waiting_media.discard(uid)
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+        return
+    _post_add_pending[uid] = {"content_type": "text", "text": text}
+    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+
+
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
 async def admin_add_text_content(message: Message) -> None:
     """Add text-only post: /add_text <matn>."""
@@ -258,12 +292,12 @@ async def admin_add_text_content(message: Message) -> None:
     if not text:
         await message.answer(ADD_TEXT_EMPTY, reply_markup=_admin_kb(message))
         return
-    await content_service.add_content(
+    content = await content_service.add_content(
         content_type="text",
         created_by=message.from_user.id,
         text=text,
     )
-    await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
+    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s*$")))

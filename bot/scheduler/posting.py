@@ -68,6 +68,8 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
             text = (content.text or content.caption or "").strip()
             if not text:
                 return False
+            if len(text) > 4096:
+                text = text[:4093] + "…"
             msg = await bot.send_message(
                 chat_id=target_group_id,
                 text=text,
