@@ -6,7 +6,7 @@ Bot static messages in Uzbek.
 # Common
 WELCOME = (
     "Assalomu alaykum! Botimizga xush kelibsiz.\n\n"
-    "Qaysi mahsulotga qiziqish bildirganingiz adminlarga yuborildi. ",
+    "Qaysi mahsulotga qiziqish bildirganingiz adminlarga yuborildi. "
     "Tez orada aloqaga chiqishadi."
 )
 # Oddiy user guruh posti orqali kirmaganda (faqat /start)
