@@ -255,6 +255,26 @@ def post_add_confirm_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def post_add_schedule_hour_keyboard() -> InlineKeyboardMarkup:
+    """Post qo'shish: nashr soati — post_time_h_0 … post_time_h_23."""
+    rows = []
+    for h in range(24):
+        btn = InlineKeyboardButton(text=f"{h:02d}", callback_data=f"post_time_h_{h}")
+        if not rows or len(rows[-1]) >= 6:
+            rows.append([btn])
+        else:
+            rows[-1].append(btn)
+    rows.append([InlineKeyboardButton(text=BTN_POST_CANCEL, callback_data="post_time_cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def post_add_schedule_minute_keyboard() -> InlineKeyboardMarkup:
+    """Post qo'shish: nashr minutlari — post_time_m_00, 15, 30, 45."""
+    minutes = ("00", "15", "30", "45")
+    row = [InlineKeyboardButton(text=m, callback_data=f"post_time_m_{m}") for m in minutes]
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
     """Admin/Owner: asosiy amallar — Postlar tarixi, Nashr vaqtlari, Leadlar."""
     return InlineKeyboardMarkup(inline_keyboard=[
