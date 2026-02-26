@@ -23,11 +23,15 @@ async def post_scheduled_content(bot: Bot, bot_username: str, schedule_id: int) 
         return
     content_id = await schedule_service.get_content_id_for_schedule(schedule_id)
     if not content_id:
-        logger.debug("No content assigned to schedule_id=%s", schedule_id)
+        logger.warning("Reja vaqtida post chiqmadi: schedule_id=%s ga content biriktirilmagan", schedule_id)
         return
     content = await content_service.get_content_by_id(content_id)
     # Skip if content missing, deleted, or publishing disabled
     if not content or content.status != "active" or not content.publishing_enabled:
+        logger.info(
+            "Reja vaqtida o'tkazib yuborildi: schedule_id=%s, content_id=%s (content yo'q/active emas/publishing o'chiq)",
+            schedule_id, content_id,
+        )
         return
     ok = await post_content_by_id_to_group(bot, bot_username, content_id)
     if ok:

@@ -252,7 +252,7 @@ async def cb_post_add_minute(callback: CallbackQuery) -> None:
         return
     minute_str = match.group(1)
     hour = pending.get("hour", 0)
-    time_str = f"{hour:02d}:{minute_str}"
+    time_str = schedule_service.parse_time(f"{hour:02d}:{minute_str}") or f"{hour:02d}:{minute_str}"
     if pending.get("content_type") == "text":
         content = await content_service.add_content(
             content_type="text",
@@ -268,14 +268,23 @@ async def cb_post_add_minute(callback: CallbackQuery) -> None:
         )
     schedule_id = await schedule_service.add_schedule(time_str)
     if schedule_id is not None:
-        await schedule_service.set_schedule_content(schedule_id, content.id)
+        set_ok = await schedule_service.set_schedule_content(schedule_id, content.id)
+        if not set_ok:
+            logger.warning("Post qo'shishda rejaga content biriktirilmadi: schedule_id=%s, content_id=%s", schedule_id, content.id)
         me = await callback.bot.get_me()
         bot_username = me.username or ""
-        scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
+        job_ok = scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
+        if not job_ok:
+            logger.warning(
+                "Post qo'shishda reja job qo'shilmadi: schedule_id=%s, time_str=%s (scheduler ishga tushmagan bo'lishi mumkin)",
+                schedule_id, time_str,
+            )
     else:
         schedule_id = await schedule_service.get_schedule_id_by_time_str(time_str)
         if schedule_id:
-            await schedule_service.set_schedule_content(schedule_id, content.id)
+            set_ok = await schedule_service.set_schedule_content(schedule_id, content.id)
+            if not set_ok:
+                logger.warning("Post qo'shishda mavjud vaqtga content biriktirilmadi: schedule_id=%s, content_id=%s", schedule_id, content.id)
     await callback.answer(POST_ADD_SAVED)
     await callback.message.edit_text(
         (callback.message.text or "") + "\n\n" + CONTENT_SAVED,
@@ -417,6 +426,8 @@ async def _send_history(target):
             pass
     _history_message_ids[uid] = []
     posts = await content_service.list_content(limit=10, include_deleted=False)
+    # Oxirgi qo'shilgan postlar birinchi (yuqorida) ko'rinsin
+    posts = sorted(posts, key=lambda p: p.id, reverse=True)
     if not posts:
         msg = await bot.send_message(
             chat_id,
@@ -799,12 +810,17 @@ async def cb_schedule_minute(callback: CallbackQuery) -> None:
         await callback.answer(SCHEDULE_INVALID)
         return
     hour = pending["hour"]
-    time_str = f"{hour:02d}:{minute_str}"
+    time_str = schedule_service.parse_time(f"{hour:02d}:{minute_str}") or f"{hour:02d}:{minute_str}"
     schedule_id = await schedule_service.add_schedule(time_str)
     if schedule_id is not None:
         me = await callback.bot.get_me()
         bot_username = me.username or ""
-        scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
+        job_ok = scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
+        if not job_ok:
+            logger.warning(
+                "Post vaqtlari: yangi vaqt uchun job qo'shilmadi: schedule_id=%s, time_str=%s",
+                schedule_id, time_str,
+            )
         await callback.answer(SCHEDULE_TIME_ADDED)
         await _send_schedule_message(callback)
     else:
