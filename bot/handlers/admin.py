@@ -13,9 +13,7 @@ from aiogram.filters import Filter
 
 from bot.texts import (
     HELP_HEADER, HELP_GUIDE,
-    CMD_START, CMD_HELP, CMD_SET_TIMES,
-    CMD_HISTORY, CMD_DELETE_POST, CMD_ADD_TEXT, ADD_TEXT_EMPTY,
-    CMD_SET_TARGET_GROUP, CMD_SET_ADMIN_GROUP,
+    ADD_TEXT_EMPTY,
     TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
     ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     GROUP_ID_SHOULD_BE_NEGATIVE,
@@ -133,21 +131,7 @@ class _PostAddWaitingMediaFilter(Filter):
 
 
 def _help_text() -> str:
-    lines = [
-        HELP_HEADER,
-        CMD_START,
-        CMD_HELP,
-        CMD_SET_TIMES,
-        CMD_HISTORY,
-        CMD_DELETE_POST,
-        CMD_ADD_TEXT,
-        CMD_SET_TARGET_GROUP,
-        CMD_SET_ADMIN_GROUP,
-        "Leadlar: Javob berilmagan leadlarni ko'rish uchun 🧾 Leadlar (inline) tugmasi.",
-    ]
-    lines.append("") 
-    lines.append(HELP_GUIDE)
-    return "\n".join(lines)
+    return f"{HELP_HEADER}\n\n{HELP_GUIDE}"
 
 
 @router.message(F.chat.type == "private", F.text == "/help")
@@ -426,8 +410,8 @@ async def _send_history(target):
             pass
     _history_message_ids[uid] = []
     posts = await content_service.list_content(limit=10, include_deleted=False)
-    # Oxirgi qo'shilgan postlar birinchi (yuqorida) ko'rinsin
-    posts = sorted(posts, key=lambda p: p.id, reverse=True)
+    # Avval qo'shilgan post avval (yuqorida), keyin qo'shilgan keyin
+    posts = sorted(posts, key=lambda p: p.id)
     if not posts:
         msg = await bot.send_message(
             chat_id,
