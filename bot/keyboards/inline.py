@@ -12,6 +12,7 @@ from bot.texts import (
     BTN_HISTORY_BACK,
     BTN_INLINE_HISTORY,
     BTN_CONFIRM_TARGET_GROUP,
+    BTN_CONFIRM_ADMIN_GROUP,
     BTN_POST_CONFIRM,
     BTN_POST_CANCEL,
     POST_NOT_ASSIGNED,
@@ -45,10 +46,59 @@ def schedule_keyboard(schedules: list) -> InlineKeyboardMarkup:
     ])
 
 
+def schedule_hour_keyboard() -> InlineKeyboardMarkup:
+    """Schedule: soat tanlash — sch_h_0 … sch_h_23."""
+    rows = []
+    for h in range(24):
+        btn = InlineKeyboardButton(text=f"{h:02d}", callback_data=f"sch_h_{h}")
+        if not rows or len(rows[-1]) >= 6:
+            rows.append([btn])
+        else:
+            rows[-1].append(btn)
+    rows.append([InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="schedule_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def schedule_minute_keyboard() -> InlineKeyboardMarkup:
+    """Schedule: minut tanlash — sch_m_00 … sch_m_59."""
+    minutes = [f"{m:02d}" for m in range(60)]
+    rows = []
+    for i in range(0, 60, 6):
+        row = [InlineKeyboardButton(text=m, callback_data=f"sch_m_{m}") for m in minutes[i : i + 6]]
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="schedule_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def schedule_pick_post_keyboard(schedule_id: int, posts: list) -> InlineKeyboardMarkup:
+    """Schedule uchun post tanlash — assign_schedule_{schedule_id}_content_{content_id}."""
+    rows = []
+    for p in posts:
+        pid = getattr(p, "id", p)
+        preview = (getattr(p, "caption", None) or getattr(p, "text", None) or f"#{pid}").strip() or f"Post #{pid}"
+        if len(preview) > 35:
+            preview = preview[:32] + "…"
+        rows.append([
+            InlineKeyboardButton(
+                text=preview,
+                callback_data=f"assign_schedule_{schedule_id}_content_{pid}",
+            )
+        ])
+    rows.append([InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="schedule_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def confirm_target_group_keyboard() -> InlineKeyboardMarkup:
     """After target group ID entered: Guruhni belgilash."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_CONFIRM_TARGET_GROUP, callback_data="confirm_target_group")],
+    ])
+
+
+def confirm_admin_group_keyboard() -> InlineKeyboardMarkup:
+    """After lead/admin group ID entered: Guruhni belgilash."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=BTN_CONFIRM_ADMIN_GROUP, callback_data="confirm_admin_group")],
     ])
 
 

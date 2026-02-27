@@ -43,6 +43,7 @@ from bot.texts import (
     BTN_ADD_POST,
     BTN_TARGET_GROUP,
     BTN_ADMINS,
+    BTN_LEAD_GROUP,
 )
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
@@ -50,9 +51,13 @@ from bot.keyboards.inline import (
     history_delete_keyboard,
     schedule_keyboard,
     confirm_target_group_keyboard,
+    confirm_admin_group_keyboard,
     post_add_confirm_keyboard,
     post_add_schedule_hour_keyboard,
     post_add_schedule_minute_keyboard,
+    schedule_hour_keyboard,
+    schedule_minute_keyboard,
+    schedule_pick_post_keyboard,
     owner_admin_list_keyboard,
     admin_main_inline_keyboard,
 )
@@ -79,6 +84,9 @@ _schedule_pending: dict[int, dict] = {}
 # Nashr guruhi: ID kiritiladi, keyin inline tasdiq
 _target_group_awaiting: set[int] = set()
 _target_group_pending: dict[int, int] = {}
+# Lead/Admin guruhi: ID kiritiladi (hozir ishlatilmaydi, lekin kod ishlashi uchun)
+_admin_group_awaiting: set[int] = set()
+_admin_group_pending: dict[int, int] = {}
 # Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
 _admin_add_awaiting: set[int] = set()
 # Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
@@ -657,10 +665,12 @@ def _format_schedule_text(schedules, schedule_content_map):
     return "\n".join(lines)
 
 
-@router.message(F.chat.type == "private", F.text == BTN_SCHEDULE)
-async def btn_schedule(message: Message) -> None:
-    # Backward compatibility: show inline history menu; dedicated schedule UI olib tashlangan.
-    await message.answer(HELP_HEADER, reply_markup=admin_main_inline_keyboard())
+async def _send_schedule_message(callback: CallbackQuery) -> None:
+    """Joriy reja vaqtlari va postlarni ko'rsatish; tugmalar orqali boshqarish."""
+    schedules = await schedule_service.list_schedules()
+    schedule_content_map = await _build_schedule_content_map(schedules)
+    text = _format_schedule_text(schedules, schedule_content_map)
+    await callback.message.edit_text(text, reply_markup=schedule_keyboard(schedules))
 
 
 @router.callback_query(F.data.regexp(re.compile(r"^del_time_(.+)$")))
