@@ -292,11 +292,12 @@ async def cb_post_add_time_cancel(callback: CallbackQuery) -> None:
     F.text,
     ~F.text.startswith("/"),
     F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
-    _PostAddWaitingMediaFilter(),
 )
 async def admin_post_add_text(message: Message) -> None:
-    """Post qo'shish: faqat matn yuborilganda — pending ga qo'shish, Yakunlash/Bekor ko'rsatish."""
+    """Post qo'shish: matn yuborilganda (tugma bosilmasdan ham) — pending ga qo'shish, Yakunlash/Bekor ko'rsatish. Rasm/video caption uchun admin_post_add_caption avval ishlaydi."""
     uid = message.from_user.id if message.from_user else 0
+    if uid in _post_add_pending:
+        return
     _post_add_waiting_media.discard(uid)
     text = (message.text or "").strip()
     if not text:
