@@ -6,49 +6,25 @@ Bot static messages in Uzbek.
 # Common
 WELCOME = (
     "Assalomu alaykum! Botimizga xush kelibsiz.\n\n"
-    "Qaysi mahsulotga qiziqish bildirganingiz adminlarga yuborildi. "
-    "Tez orada aloqaga chiqishadi."
+    "Bu bot orqali mahsulot postlarini reja bo'yicha guruhga joylaysiz."
 )
 # Oddiy user guruh posti orqali kirmaganda (faqat /start)
 WELCOME_USER_ONLY_VIA_GROUP = (
     "Assalomu alaykum!\n\n"
-    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
-    "Quyidagi adminlar ro'yxati va tugmalar orqali xabar yuborishingiz mumkin."
+    "Mahsulot haqida batafsil ma'lumot olish uchun guruhimizdagi ma'lumotlardan foydalaning."
 )
-USER_CONTACT_ONLY_VIA_GROUP = (
-    "Mahsulot haqida batafsil ma'lumot olish uchun adminlar bilan bog'laning. "
-    "Xabaringizni yuboring — adminlar guruhiga yetkaziladi."
+USER_SIMPLE_REPLY = (
+    "Mahsulot haqida bilmoqchi bo'lsangiz guruhimizda adminlar haqida ma'lumotlar orqali bog'laning !"
 )
-LEAD_SENT = (
-    "Sizning xabaringiz adminlarga yuborildi. Tez orada aloqaga chiqishadi."
-)
-LEAD_SENT_NO_GROUP = (
-    "Xabar qabul qilindi. Lead guruhi hali sozlanmagan bo'lsa adminlar keyinroq ko'radi."
-)
-LEAD_SENT_FAILED = (
-    "Xabar qabul qilindi, lekin adminlar guruhiga yuborishda texnik xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring yoki adminlarga murojaat qiling."
-)
-# Oddiy user xabar yozganda standart javob: xabar qabul qilindi + adminlar ro'yxati
-LEAD_REPLY_STANDARD = (
-    "Xabaringiz qabul qilindi. Mahsulot haqida batafsil ma'lumot olish uchun adminlarimiz bilan bog'laning.\n\n"
-    "Quyida adminlar ro'yxati:"
-)
-LEAD_RATE_LIMIT = (
-    "Juda ko'p xabar yubordingiz. Iltimos, biroz kutib qayta urinib ko'ring."
-)
-CONTACT_ADMIN = "Admin bilan bog'lanish"
-TAKE_LEAD = "Leadni olish"
-ADMIN_LIST = "Adminlar ro'yxati"
 BACK = "Orqaga"
 
 # Admin / Owner
 HELP_HEADER = "Yordam"
 HELP_GUIDE = (
-    "📌 Post qo'shish — «➕ Post qo'shish» tugmasi: rasm, video yoki matn yuboring, ixtiyoriy caption, «Yakunlash», so'ng nashr vaqtini (soat va minut) tanlang. Post saqlanadi va shu vaqtda guruhda avtomatik chiqadi.\n\n"
-    "⏰ Post vaqtlari — «⏰ Post vaqtlari»: mavjud vaqtlarni ko'ring, yangi vaqt qo'shing (➕ Vaqt qo'shish), har bir vaqt uchun «Post tanlash» bilan post biriktiring. Bir vaqtga bitta post.\n\n"
+    "📌 Post qo'shish — «➕ Post qo'shish» tugmasi: rasm, video yoki matn yuboring, ixtiyoriy caption, «Yakunlash», "
+    "so'ng nashr vaqtini (soat va minut) tanlang. Post saqlanadi va shu vaqtda guruhda avtomatik chiqadi.\n\n"
     "📜 Postlar tarixi — oxirgi qo'shilgan postlar ro'yxati, o'chirish tugmasi orqali postni bazadan o'chirish mumkin.\n\n"
     "📢 Nashr guruhi — postlar yuboriladigan guruh. Sozlash: guruhda yoki shaxsiy chatda tegishli tugma/menyu orqali.\n\n"
-    "👥 Lead guruhi — foydalanuvchi xabarlari (leadlar) yuboriladigan admin guruhi. Javob berilmagan leadlar «🧾 Leadlar» orqali ko'riladi; «Leadni olish» bilan o'zingizga biriktirasiz.\n\n"
     "👤 Adminlar — faqat egasi admin qo'shadi yoki olib tashlaydi (adminlar ro'yxati va tegishli tugmalar orqali)."
 )
 ADD_TEXT_EMPTY = "Matn kiriting. Masalan: /add_text Reklama matni shu yerda"

@@ -34,7 +34,6 @@ from bot.services import (
     content_service,
     schedule_service,
     settings_service,
-    leads_service,
     admin_service,
 )
 from bot.scheduler import posting as posting_module
@@ -42,9 +41,7 @@ from bot.texts import (
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
-    BTN_SCHEDULE,
     BTN_TARGET_GROUP,
-    BTN_LEAD_GROUP,
     BTN_ADMINS,
 )
 from bot.keyboards.reply import admin_main_keyboard
@@ -52,18 +49,12 @@ from bot.keyboards.inline import (
     history_refresh_keyboard,
     history_delete_keyboard,
     schedule_keyboard,
-    schedule_keyboard_with_posts,
-    schedule_pick_post_keyboard,
-    schedule_hour_keyboard,
-    schedule_minute_keyboard,
     confirm_target_group_keyboard,
-    confirm_admin_group_keyboard,
     post_add_confirm_keyboard,
     post_add_schedule_hour_keyboard,
     post_add_schedule_minute_keyboard,
     owner_admin_list_keyboard,
     admin_main_inline_keyboard,
-    leads_list_keyboard,
 )
 from config import is_owner
 
@@ -74,11 +65,8 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
-    BTN_SCHEDULE,
     BTN_TARGET_GROUP,
-    BTN_LEAD_GROUP,
 })
-# Lead reply handler bu tugmalarni yutmasin — Adminlar / Lead guruhi va b. o'z handlerlariga tushishi kerak
 _REPLY_IGNORE_TEXTS = _ADMIN_BUTTON_TEXTS | frozenset({BTN_ADMINS})
 
 
@@ -91,15 +79,8 @@ _schedule_pending: dict[int, dict] = {}
 # Nashr guruhi: ID kiritiladi, keyin inline tasdiq
 _target_group_awaiting: set[int] = set()
 _target_group_pending: dict[int, int] = {}
-# Lead guruhi: ID kiritiladi, keyin inline tasdiq
-_admin_group_awaiting: set[int] = set()
-_admin_group_pending: dict[int, int] = {}
 # Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
 _admin_add_awaiting: set[int] = set()
-# Leadga javob: admin reply text kiritadi
-_lead_reply_pending: dict[int, int] = {}
-# Lead ro'yxati konteksti (inline leads)
-_lead_list_context: set[int] = set()
 # Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
 _post_add_waiting_media: set[int] = set()
 _post_add_pending: dict[int, dict] = {}  # uid -> {content_type, file_id, caption}
@@ -678,22 +659,8 @@ def _format_schedule_text(schedules, schedule_content_map):
 
 @router.message(F.chat.type == "private", F.text == BTN_SCHEDULE)
 async def btn_schedule(message: Message) -> None:
-    schedules = await schedule_service.list_schedules()
-    schedule_content_map = await _build_schedule_content_map(schedules)
-    text = _format_schedule_text(schedules, schedule_content_map)
-    await message.answer(text, reply_markup=schedule_keyboard_with_posts(schedules, schedule_content_map))
-
-
-async def _send_schedule_message(target, reply_markup=None):
-    """Send or edit schedule list (for message or callback)."""
-    schedules = await schedule_service.list_schedules()
-    schedule_content_map = await _build_schedule_content_map(schedules)
-    text = _format_schedule_text(schedules, schedule_content_map)
-    kb = schedule_keyboard_with_posts(schedules, schedule_content_map) if reply_markup is None else reply_markup
-    if isinstance(target, Message):
-        await target.answer(text, reply_markup=kb)
-    else:
-        await target.message.edit_text(text, reply_markup=kb)
+    # Backward compatibility: show inline history menu; dedicated schedule UI olib tashlangan.
+    await message.answer(HELP_HEADER, reply_markup=admin_main_inline_keyboard())
 
 
 @router.callback_query(F.data.regexp(re.compile(r"^del_time_(.+)$")))
@@ -709,19 +676,17 @@ async def cb_del_time(callback: CallbackQuery) -> None:
     time_str = time_encoded.replace("_", ":", 1)
     schedule_id = await schedule_service.get_schedule_id_by_time_str(time_str)
     ok = await schedule_service.remove_schedule(time_str)
-    if ok:
-        if schedule_id is not None:
-            scheduler_runner.remove_schedule_job(schedule_id)
+    if ok and schedule_id is not None:
+        scheduler_runner.remove_schedule_job(schedule_id)
         await callback.answer(SCHEDULE_REMOVED.format(time_str))
-        await _send_schedule_message(callback)
     else:
         await callback.answer(SCHEDULE_INVALID)
 
 
 @router.callback_query(F.data == "schedule_back")
 async def cb_schedule_back(callback: CallbackQuery) -> None:
-    await _send_schedule_message(callback)
-    await callback.answer()
+    # Backward compatibility: just go to main inline menu.
+    await cb_inline_history(callback)
 
 
 @router.callback_query(F.data.regexp(re.compile(r"^assign_post_(\d+)$")))
@@ -819,24 +784,15 @@ async def cb_inline_history(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "inline_schedule")
 async def cb_inline_schedule(callback: CallbackQuery) -> None:
-    await _send_schedule_message(callback)
+    # Backward compatibility: schedule inline tugmasi endi tarixni ko'rsatadi.
+    await cb_inline_history(callback)
     await callback.answer()
 
 
 @router.callback_query(F.data == "inline_leads")
 async def cb_inline_leads(callback: CallbackQuery) -> None:
-    """Show unanswered leads list."""
-    leads = await leads_service.list_unanswered_leads(limit=20)
-    _lead_list_context.add(callback.from_user.id if callback.from_user else 0)
-    if not leads:
-        await callback.message.edit_text("Javob berilmagan leadlar yo'q.", reply_markup=admin_main_inline_keyboard())
-        await callback.answer()
-        return
-    kb = leads_list_keyboard(leads)
-    lines = ["Javob berilmagan leadlar:"]
-    for ld in leads:
-        lines.append(f"#{ld.id} | user_id: {ld.telegram_user_id} | {ld.created_at}")
-    await callback.message.edit_text("\n".join(lines), reply_markup=kb)
+    """Backward compatibility: leadlar menyusi o'rniga bosh menyu ko'rsatiladi."""
+    await cb_nav_home(callback)
     await callback.answer()
 
 
@@ -852,16 +808,8 @@ async def cb_nav_home(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.regexp(re.compile(r"^reply_lead_(\d+)$")))
 async def cb_reply_lead(callback: CallbackQuery) -> None:
-    """Admin leadga javob bermoqchi — reply matni kutiladi."""
-    match = callback.data and re.match(r"^reply_lead_(\d+)$", callback.data)
-    if not match:
-        await callback.answer()
-        return
-    lead_id = int(match.group(1))
-    uid = callback.from_user.id if callback.from_user else 0
-    _lead_reply_pending[uid] = lead_id
-    await callback.message.answer(f"Lead #{lead_id} ga javob matnini yuboring.")
-    await callback.answer()
+    """Backward compatibility: leadga javob callback endi ishlatilmaydi."""
+    await callback.answer("Lead funksiyasi endi ishlatilmaydi.")
 
 
 @router.message(
@@ -873,31 +821,16 @@ async def cb_reply_lead(callback: CallbackQuery) -> None:
 async def admin_reply_to_lead_text(message: Message) -> None:
     """Agar admin leadga javob kiritayotgan bo'lsa, foydalanuvchiga yuborish."""
     uid = message.from_user.id if message.from_user else 0
-    if uid not in _lead_reply_pending:
-        return
-    lead_id = _lead_reply_pending.pop(uid, None)
-    if not lead_id:
-        return
-    lead = await leads_service.get_lead(lead_id)
-    if not lead:
-        await message.answer("Lead topilmadi.")
-        return
-    try:
-        await message.bot.send_message(lead.telegram_user_id, message.text)
-        # lead statusini 'taken' (agar pending bo'lsa) va answered qilib belgilash
-        await leads_service.mark_lead_answered(lead_id, uid)
-        await message.answer(f"Javob yuborildi. Lead #{lead_id} yopildi.")
-    except Exception:
-        await message.answer("Javob yuborib bo'lmadi.")
+    # Lead oqimi olib tashlangan, bu handler endi hech narsa qilmaydi.
+    return
 @router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
 async def cmd_set_admin_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     if not is_owner(uid) and not await admin_service.is_admin(uid):
         await message.answer(ADMIN_ONLY)
         return
-    gid = message.chat.id
-    await settings_service.set_admin_group_id(gid)
-    await message.answer(ADMIN_GROUP_SET)
+    # Lead guruhi funksionalligi olib tashlangan; endi bu buyruq ishlatilmaydi.
+    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.")
 
 
 @router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_admin_group\s+(-?\d+)$")))
@@ -907,21 +840,13 @@ async def cmd_set_admin_group_id_private(message: Message) -> None:
     if not match:
         return
     gid = int(match.group(1))
-    if gid >= 0:
-        await message.answer(GROUP_ID_SHOULD_BE_NEGATIVE, reply_markup=_admin_kb(message))
-        return
-    await settings_service.set_admin_group_id(gid)
-    await message.answer(ADMIN_GROUP_SET, reply_markup=_admin_kb(message))
+    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
 
 
 @router.message(F.chat.type == "private", F.text == "/set_admin_group")
 @router.message(F.chat.type == "private", F.text == BTN_LEAD_GROUP)
 async def cmd_set_admin_group_private(message: Message) -> None:
-    uid = message.from_user.id if message.from_user else 0
-    _admin_group_awaiting.add(uid)
-    current = await settings_service.get_admin_group_id()
-    info = f"Joriy lead guruhi: {current}" if current else "Lead guruhi hali belgilanmagan."
-    await message.answer(f"{info}\n\n{ADMIN_GROUP_PROMPT_ID}", reply_markup=_admin_kb(message))
+    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
 
 
 @router.callback_query(F.data == "confirm_admin_group")
@@ -950,32 +875,10 @@ async def cb_cancel_admin_add(callback: CallbackQuery) -> None:
     await callback.answer("Bekor qilindi.")
 
 
-# ---------- Take lead callback (admin group) ----------
 @router.callback_query(F.data.regexp(re.compile(r"^take_lead_(\d+)$")))
 async def cb_take_lead(callback: CallbackQuery) -> None:
-    from bot.services import admin_service
-    from bot.texts import LEAD_TAKEN, LEAD_ALREADY_TAKEN
-
-    match = callback.data and re.match(r"^take_lead_(\d+)$", callback.data)
-    if not match:
-        await callback.answer()
-        return
-    lead_id = int(match.group(1))
-    admin_telegram_id = callback.from_user.id if callback.from_user else 0
-    is_admin_user = is_owner(admin_telegram_id) or await admin_service.is_admin(admin_telegram_id)
-    if not is_admin_user:
-        await callback.answer("Faqat adminlar leadni olishi mumkin.")
-        return
-    ok = await leads_service.take_lead(lead_id, admin_telegram_id)
-    if ok:
-        await callback.answer(LEAD_TAKEN)
-        try:
-            await callback.message.edit_reply_markup(reply_markup=None)
-            await callback.message.answer(f"✅ Lead #{lead_id} — admin tomonidan olindi.")
-        except Exception:
-            pass
-    else:
-        await callback.answer(LEAD_ALREADY_TAKEN)
+    """Backward compatibility: lead olish endi qo'llab-quvvatlanmaydi."""
+    await callback.answer("Lead funksiyasi endi ishlatilmaydi.")
 
 
 # ---------- Owner inline: admin list / help (only owner can use) ----------

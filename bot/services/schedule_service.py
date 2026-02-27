@@ -34,17 +34,11 @@ def parse_time(s: str) -> str | None:
 
 
 async def add_schedule(time_str: str) -> Optional[int]:
-    """Add a posting time. Returns new schedule id, or None if invalid or duplicate."""
+    """Add a posting time. Returns new schedule id, or None if invalid."""
     normalized = parse_time(time_str)
     if not normalized:
         return None
     conn = get_db()
-    async with conn.execute(
-        "SELECT 1 FROM schedules WHERE time_str = ?", (normalized,)
-    ) as cur:
-        row = await cur.fetchone()
-    if row:
-        return None  # duplicate
     try:
         cur = await conn.execute(
             "INSERT INTO schedules (time_str, enabled) VALUES (?, 1)",
