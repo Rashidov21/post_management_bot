@@ -29,6 +29,7 @@ HELP_GUIDE = (
 )
 ADD_TEXT_EMPTY = "Matn kiriting. Masalan: /add_text Reklama matni shu yerda"
 
+# Schedule / groups
 TIMES_SET = "Nashr vaqtlari yangilandi."
 TARGET_GROUP_SET = "Nashr guruhi o'rnatildi."
 TARGET_GROUP_PROMPT_ID = "Nashr guruhi ID sini kiriting (masalan -1001234567890):"
@@ -60,6 +61,10 @@ SCHEDULE_ADDED = "Vaqt qo'shildi: {}"
 SCHEDULE_REMOVED = "Vaqt olib tashlandi: {}"
 SCHEDULE_INVALID = "Vaqt noto'g'ri. Masalan: 09:00 yoki 14:30"
 CURRENT_TIMES = "Joriy post joylash vaqtlari: {}"
+SCHEDULE_ADD_TIME_HINT = "Post joylash uchun yangi vaqtni 09:00 formatida yuboring yoki /set_times 09:00 12:00 buyrug'ini ishlating."
+SCHEDULE_PICK_HOUR = "Soatni tanlang"
+SCHEDULE_PICK_MINUTE = "Minutni tanlang"
+SCHEDULE_TIME_ADDED = "Vaqt qo'shildi."
 ADMIN_ADDED = "Admin qo'shildi."
 ADMIN_REMOVED = "Admin olib tashlandi."
 ADMIN_ALREADY = "Bu foydalanuvchi allaqachon admin."
@@ -74,26 +79,6 @@ REPLY_TO_REMOVE_ADMIN = "Adminni olib tashlash uchun uning xabariga reply qiling
 OWNER_ONLY = "Bu buyruqni faqat bot egasi ishlata oladi."
 ADMIN_ONLY = "Bu buyruqni faqat adminlar ishlata oladi."
 LIST_ADMINS_HEADER = "Adminlar:"
-
-# Lead forward format (to admin group)
-LEAD_FORWARD_TEMPLATE = (
-    "📩 Yangi lead\n"
-    "👤 Ism: {name}\n"
-    "🆔 Username: @{username}\n"
-    "🆔 ID: {user_id}\n"
-    "📞 Tel: {phone}\n"
-    "💬 Xabar: {text}\n"
-    "📌 Manba post: {source}"
-)
-LEAD_SOURCE_UNKNOWN = "noma'lum"
-# Post ostidagi tugmani bosganda lead matnida ko'rsatiladigan izoh
-LEAD_CLICKED_BUTTON_TEXT = "Post ostidagi «Adminlar bilan bog'lanish» tugmasi orqali botga kirdi."
-LEAD_TAKEN = "Lead sizga biriktirildi. Foydalanuvchiga javob yozing."
-LEAD_ALREADY_TAKEN = "Bu leadni boshqa admin allaqachon oldi."
-
-# Inline when bot posts in group (guruhdagi post ostida — botga post konteksti bilan)
-CONTACT_ADMIN_BUTTON = "Admin bilan bog'lanish"
-BTN_CONTACT_ADMINS_UNDER_POST = "📩 Adminlar bilan bog'lanish"
 
 # Reply / Inline button labels
 BTN_USER_WRITE = "📩 Xabar yuborish"
@@ -112,15 +97,10 @@ BTN_REFRESH_HISTORY = "🔄 Yangilash"
 BTN_ADD_TIME = "➕ Vaqt qo'shish"
 BTN_INLINE_HISTORY = "📜 Postlar tarixi"
 BTN_INLINE_SCHEDULE = "⏰ Nashr vaqtlari"
-SCHEDULE_ADD_TIME_HINT = "Post joylash uchun yangi vaqtni 09:00 formatida yuboring yoki /set_times 09:00 12:00 buyrug'ini ishlating."
 BTN_POST_NOW = "Hozir joylash"
 POST_NOW_SUCCESS = "Post guruhga yuborildi."
 POST_NOW_FAILED = "Post yuborish amalga oshmadi (guruh yoki kontent tekshiring)."
-SCHEDULE_PICK_HOUR = "Soatni tanlang"
-SCHEDULE_PICK_MINUTE = "Minutni tanlang"
-SCHEDULE_TIME_ADDED = "Vaqt qo'shildi."
 POST_NOT_ASSIGNED = "Post tanlanmagan"
-BTN_ASSIGN_POST = "Post tanlash"
 SCHEDULE_ASSIGNED = "Post vaqtga biriktirildi."
 SCHEDULE_PICK_POST_HEADER = "Ushbu vaqt uchun post tanlang:"
 NASHR_TIMES_LABEL = "Post joylash vaqtlari:"

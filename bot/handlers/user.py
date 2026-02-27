@@ -12,10 +12,9 @@ from aiogram.filters import CommandStart, CommandObject, Filter
 from config import is_owner
 from bot.texts import (
     WELCOME,
-    WELCOME_USER_ONLY_VIA_GROUP,
     USER_SIMPLE_REPLY,
 )
-from bot.services import user_service, admin_service
+from bot.services import admin_service
 from bot.keyboards.reply import admin_main_keyboard
 
 logger = logging.getLogger(__name__)
@@ -34,13 +33,7 @@ class _NotAdminOrOwnerFilter(Filter):
 
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_deep(message: Message, command: CommandObject = None) -> None:
-    """Start with optional ?start=post_123 — user yaratiladi. Deep-link endi lead yaratmaydi."""
-    user = await user_service.get_or_create_user(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name,
-    )
+    """Start with optional ?start=post_123. Oddiy user uchun faqat tushuntiruvchi javob."""
     uid = message.from_user.id if message.from_user else 0
     user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
@@ -53,12 +46,6 @@ async def cmd_start_deep(message: Message, command: CommandObject = None) -> Non
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
     """Regular /start in private (guruh posti orqali emas)."""
-    await user_service.get_or_create_user(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name,
-    )
     uid = message.from_user.id if message.from_user else 0
     user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
@@ -76,11 +63,4 @@ async def cmd_start(message: Message) -> None:
 )
 async def private_message_simple_reply(message: Message) -> None:
     """Oddiy user xabar yozganda: har doim bitta tushuntiruvchi javob qaytariladi."""
-    user = await user_service.get_or_create_user(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name,
-    )
-    # Faqat tushuntiruvchi javob
     await message.answer(USER_SIMPLE_REPLY)
