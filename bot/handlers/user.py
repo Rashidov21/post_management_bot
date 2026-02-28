@@ -7,6 +7,7 @@ Admin/owner: matn yuborganda matnli post qo'shish — bitta handler ichida teksh
 import logging
 
 from aiogram import Router, F
+from aiogram.enums import ChatType
 from aiogram.types import Message
 from aiogram.filters import CommandStart, CommandObject
 
@@ -56,7 +57,7 @@ async def cmd_start(message: Message) -> None:
 
 
 @router.message(
-    F.chat.type == "private",
+    F.chat.type == ChatType.PRIVATE,
     F.text,
     ~F.text.startswith("/"),
     F.text.filter(lambda t: (t or "").strip() not in STANDARD_BUTTON_TEXTS),
