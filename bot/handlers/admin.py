@@ -119,6 +119,18 @@ class _PostAddWaitingMediaFilter(Filter):
         return (message.from_user.id if message.from_user else 0) in _post_add_waiting_media
 
 
+class _InGroupIdOrAdminFlowFilter(Filter):
+    """True when user is entering group ID or admin ID (boshqa flowda); matnli post uchun emas."""
+
+    async def __call__(self, message: Message) -> bool:
+        uid = message.from_user.id if message.from_user else 0
+        return (
+            uid in _target_group_awaiting
+            or uid in _admin_group_awaiting
+            or uid in _admin_add_awaiting
+        )
+
+
 def _help_text() -> str:
     return f"{HELP_HEADER}\n\n{HELP_GUIDE}"
 
@@ -336,9 +348,10 @@ async def admin_add_text_empty(message: Message) -> None:
     F.text,
     F.text.startswith("/") == False,
     F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
+    _InGroupIdOrAdminFlowFilter(),
 )
 async def admin_text_ignored_for_content(message: Message) -> None:
-    """Non-command, non-button text from admin in private: consumed here (user router does not run for admins)."""
+    """Guruh ID / admin ID kiritish flow'ida yuborilgan matn (post emas) — user router ishlamasligi uchun yutib qolinadi."""
     pass
 
 
