@@ -491,7 +491,7 @@ async def admin_add_text_empty(message: Message) -> None:
     F.chat.type == ChatType.PRIVATE,
     F.text,
     F.text.startswith("/") == False,
-    F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
+    ~F.text.in_(_ADMIN_BUTTON_TEXTS),
     _InGroupIdOrAdminFlowFilter(),
 )
 async def admin_text_ignored_for_content(message: Message) -> None:

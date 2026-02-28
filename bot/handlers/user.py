@@ -61,13 +61,13 @@ async def cmd_start(message: Message) -> None:
     F.chat.type == ChatType.PRIVATE,
     F.text,
     ~F.text.startswith("/"),
-    F.text.filter(lambda t: ((t if isinstance(t, str) else getattr(t, "text", None)) or "").strip() not in STANDARD_BUTTON_TEXTS),
+    ~F.text.in_(STANDARD_BUTTON_TEXTS),
 )
 @router.edited_message(
     F.chat.type == ChatType.PRIVATE,
     F.text,
     ~F.text.startswith("/"),
-    F.text.filter(lambda t: ((t if isinstance(t, str) else getattr(t, "text", None)) or "").strip() not in STANDARD_BUTTON_TEXTS),
+    ~F.text.in_(STANDARD_BUTTON_TEXTS),
 )
 async def private_text_message(message: Message) -> None:
     """Barcha private matn (standart tugma matnlari emas): admin/owner → post flow, oddiy user → USER_SIMPLE_REPLY."""
