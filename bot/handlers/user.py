@@ -14,6 +14,10 @@ from config import is_owner
 from bot.texts import (
     WELCOME,
     USER_SIMPLE_REPLY,
+    BTN_HELP,
+    BTN_HISTORY,
+    BTN_ADD_POST,
+    BTN_TARGET_GROUP,
 )
 from bot.services import admin_service
 from bot.keyboards.reply import admin_main_keyboard
@@ -22,6 +26,9 @@ from bot.handlers import admin as admin_handlers
 
 logger = logging.getLogger(__name__)
 router = Router(name="user")
+
+# Standart tugma matnlari — bular post flow'ga tushmasin, boshqa handlerga qoladi
+STANDARD_BUTTON_TEXTS = frozenset({BTN_HELP, BTN_HISTORY, BTN_ADD_POST, BTN_TARGET_GROUP})
 
 
 @router.message(CommandStart(deep_link=True))
@@ -52,11 +59,10 @@ async def cmd_start(message: Message) -> None:
     F.chat.type == "private",
     F.text,
     ~F.text.startswith("/"),
-    F.text.filter(lambda t: t not in admin_handlers._ADMIN_BUTTON_TEXTS),
+    F.text.filter(lambda t: (t or "").strip() not in STANDARD_BUTTON_TEXTS),
 )
 async def private_text_message(message: Message) -> None:
-    """Barcha private matn (buyruq/tugma emas): handler ichida admin/owner yoki oddiy user tekshiriladi."""
-    await message.answer("Matn qabul qilindi")
+    """Barcha private matn (standart tugma matnlari emas): admin/owner → post flow, oddiy user → USER_SIMPLE_REPLY."""
     if not message.from_user:
         return
     uid = message.from_user.id
