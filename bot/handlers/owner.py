@@ -5,6 +5,7 @@ Owner-only handlers: /add_admin, /remove_admin, /list_admins.
 import logging
 
 from aiogram import Router, F
+from aiogram.enums import ChatType
 from aiogram.types import Message
 
 from bot.texts import (
@@ -30,7 +31,7 @@ def _owner_kb(message: Message):
     return admin_main_keyboard(include_owner=True)
 
 
-@router.message(F.chat.type == "private", F.text == BTN_ADMINS)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_ADMINS)
 async def btn_admins(message: Message) -> None:
     """Owner: show admin management inline menu."""
     if not is_owner(message.from_user.id):
@@ -38,7 +39,7 @@ async def btn_admins(message: Message) -> None:
     await message.answer("Adminlar boshqaruvi:", reply_markup=owner_admins_keyboard())
 
 
-@router.message(F.chat.type == "private", F.text == "/add_admin")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/add_admin")
 async def cmd_add_admin(message: Message) -> None:
     if not message.reply_to_message or not message.reply_to_message.from_user:
         await message.answer(REPLY_TO_ADD_ADMIN)
@@ -56,7 +57,7 @@ async def cmd_add_admin(message: Message) -> None:
     await message.answer(ADMIN_ADDED if ok else "Xatolik yuz berdi.", reply_markup=_owner_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text == "/remove_admin")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/remove_admin")
 async def cmd_remove_admin(message: Message) -> None:
     if not message.reply_to_message or not message.reply_to_message.from_user:
         await message.answer(REPLY_TO_REMOVE_ADMIN)
@@ -66,7 +67,7 @@ async def cmd_remove_admin(message: Message) -> None:
     await message.answer(ADMIN_REMOVED if ok else ADMIN_NOT_FOUND, reply_markup=_owner_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text == "/list_admins")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/list_admins")
 async def cmd_list_admins(message: Message) -> None:
     admins = await admin_service.list_admins()
     if not admins:

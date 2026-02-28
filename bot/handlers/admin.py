@@ -6,6 +6,7 @@ import logging
 import re
 
 from aiogram import Router, F
+from aiogram.enums import ChatType
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery
@@ -157,8 +158,8 @@ def _help_text() -> str:
     return f"{HELP_HEADER}\n\n{HELP_GUIDE}"
 
 
-@router.message(F.chat.type == "private", F.text == "/help")
-@router.message(F.chat.type == "private", F.text == BTN_HELP)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/help")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_HELP)
 async def cmd_help(message: Message) -> None:
     await message.answer(
         _help_text(),
@@ -167,7 +168,7 @@ async def cmd_help(message: Message) -> None:
 
 
 # ---------- Post qo'shish tugmasi ----------
-@router.message(F.chat.type == "private", F.text == BTN_ADD_POST)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_ADD_POST)
 async def btn_add_post(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _post_add_waiting_media.add(uid)
@@ -176,7 +177,7 @@ async def btn_add_post(message: Message) -> None:
 
 # ---------- Matnli post (caption dan oldin tekshiriladi) ----------
 @router.message(
-    F.chat.type == "private",
+    F.chat.type == ChatType.PRIVATE,
     F.text,
     ~F.text.startswith("/"),
     F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
@@ -195,7 +196,7 @@ async def admin_post_add_text(message: Message) -> None:
 
 
 # ---------- Content: photo, video, caption ----------
-@router.message(F.chat.type == "private", F.photo)
+@router.message(F.chat.type == ChatType.PRIVATE, F.photo)
 async def admin_save_photo(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _post_add_waiting_media.discard(uid)
@@ -208,7 +209,7 @@ async def admin_save_photo(message: Message) -> None:
     await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
 
 
-@router.message(F.chat.type == "private", F.video)
+@router.message(F.chat.type == ChatType.PRIVATE, F.video)
 async def admin_save_video(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _post_add_waiting_media.discard(uid)
@@ -220,7 +221,7 @@ async def admin_save_video(message: Message) -> None:
     await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
 
 
-@router.message(F.chat.type == "private", F.text, _PostAddPendingFilter())
+@router.message(F.chat.type == ChatType.PRIVATE, F.text, _PostAddPendingFilter())
 async def admin_post_add_caption(message: Message) -> None:
     """Post qo'shish: caption matnini qabul qilish."""
     uid = message.from_user.id if message.from_user else 0
@@ -341,7 +342,7 @@ async def cb_post_add_time_cancel(callback: CallbackQuery) -> None:
     )
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
 async def admin_add_text_content(message: Message) -> None:
     """Add text-only post: /add_text <matn>."""
     match = re.match(r"^/add_text\s+(.+)$", message.text, re.DOTALL)
@@ -359,14 +360,14 @@ async def admin_add_text_content(message: Message) -> None:
     await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/add_text\s*$")))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/add_text\s*$")))
 async def admin_add_text_empty(message: Message) -> None:
     """Prompt when /add_text has no body."""
     await message.answer(ADD_TEXT_EMPTY, reply_markup=_admin_kb(message))
 
 
 @router.message(
-    F.chat.type == "private",
+    F.chat.type == ChatType.PRIVATE,
     F.text,
     F.text.startswith("/") == False,
     F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
@@ -378,7 +379,7 @@ async def admin_text_ignored_for_content(message: Message) -> None:
 
 
 # ---------- Schedule ----------
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_times\s+(.+)$", re.I)))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/set_times\s+(.+)$", re.I)))
 async def cmd_set_times(message: Message) -> None:
     """e.g. /set_times 09:00, 14:00, 18:00 - add times (duplicates skipped). Yangi vaqtlar uchun scheduler job qo'shiladi."""
     from bot.scheduler import runner as scheduler_runner
@@ -479,8 +480,8 @@ async def _send_history(target):
     _history_message_ids[uid] = message_ids
 
 
-@router.message(F.chat.type == "private", F.text == "/history")
-@router.message(F.chat.type == "private", F.text == BTN_HISTORY)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/history")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_HISTORY)
 async def cmd_history(message: Message) -> None:
     await _send_history(message)
 
@@ -521,7 +522,7 @@ async def cb_pub_off(callback: CallbackQuery) -> None:
         await callback.answer(POST_NOT_FOUND)
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/delete_post\s+(\d+)$")))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/delete_post\s+(\d+)$")))
 async def cmd_delete_post(message: Message) -> None:
     match = message.text and re.match(r"^/delete_post\s+(\d+)$", message.text)
     if not match:
@@ -567,7 +568,7 @@ async def cb_post_now(callback: CallbackQuery) -> None:
 
 
 # ---------- Target group: admin sends /set_target_group in the group ----------
-@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_target_group")
+@router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), F.text == "/set_target_group")
 async def cmd_set_target_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     if not is_owner(uid) and not await admin_service.is_admin(uid):
@@ -578,7 +579,7 @@ async def cmd_set_target_group_in_group(message: Message) -> None:
     await message.answer(TARGET_GROUP_SET)
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_target_group\s+(-?\d+)$")))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/set_target_group\s+(-?\d+)$")))
 async def cmd_set_target_group_id_private(message: Message) -> None:
     """Set target group by ID from private chat: /set_target_group -1001234567890."""
     match = message.text and re.match(r"^/set_target_group\s+(-?\d+)$", message.text)
@@ -592,15 +593,15 @@ async def cmd_set_target_group_id_private(message: Message) -> None:
     await message.answer(TARGET_GROUP_SET, reply_markup=_admin_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text == "/set_target_group")
-@router.message(F.chat.type == "private", F.text == BTN_TARGET_GROUP)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/set_target_group")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_TARGET_GROUP)
 async def cmd_set_target_group_private(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _target_group_awaiting.add(uid)
     await message.answer(TARGET_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text, _AdminAddAwaitingFilter())
+@router.message(F.chat.type == ChatType.PRIVATE, F.text, _AdminAddAwaitingFilter())
 async def admin_add_by_id_message(message: Message) -> None:
     """Owner: Admin qo'shish — ID va ixtiyoriy username/ism/familiya (masalan: 123456789 @user John Doe)."""
     uid = message.from_user.id if message.from_user else 0
@@ -641,7 +642,7 @@ async def admin_add_by_id_message(message: Message) -> None:
     )
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^-?\d+$")))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^-?\d+$")))
 async def admin_text_group_id(message: Message) -> None:
     """Accept target or lead group ID when user is in corresponding awaiting set."""
     uid = message.from_user.id if message.from_user else 0
@@ -859,7 +860,7 @@ async def cb_reply_lead(callback: CallbackQuery) -> None:
 
 
 @router.message(
-    F.chat.type == "private",
+    F.chat.type == ChatType.PRIVATE,
     F.text,
     F.text.len() > 0,
     F.text.filter(lambda t: t not in _REPLY_IGNORE_TEXTS),
@@ -869,7 +870,7 @@ async def admin_reply_to_lead_text(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     # Lead oqimi olib tashlangan, bu handler endi hech narsa qilmaydi.
     return
-@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/set_admin_group")
+@router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), F.text == "/set_admin_group")
 async def cmd_set_admin_group_in_group(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     if not is_owner(uid) and not await admin_service.is_admin(uid):
@@ -879,7 +880,7 @@ async def cmd_set_admin_group_in_group(message: Message) -> None:
     await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.")
 
 
-@router.message(F.chat.type == "private", F.text.regexp(re.compile(r"^/set_admin_group\s+(-?\d+)$")))
+@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/set_admin_group\s+(-?\d+)$")))
 async def cmd_set_admin_group_id_private(message: Message) -> None:
     """Set admin group by ID from private chat: /set_admin_group -1001234567890."""
     match = message.text and re.match(r"^/set_admin_group\s+(-?\d+)$", message.text)
@@ -889,8 +890,8 @@ async def cmd_set_admin_group_id_private(message: Message) -> None:
     await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
 
 
-@router.message(F.chat.type == "private", F.text == "/set_admin_group")
-@router.message(F.chat.type == "private", F.text == BTN_LEAD_GROUP)
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/set_admin_group")
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_LEAD_GROUP)
 async def cmd_set_admin_group_private(message: Message) -> None:
     await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
 
