@@ -8,18 +8,6 @@ from typing import Literal, Optional
 
 ContentType = Literal["photo", "video", "text"]
 ContentStatus = Literal["active", "deleted"]
-LeadStatus = Literal["pending", "taken"]
-
-
-@dataclass
-class User:
-    """Telegram user (lead)."""
-    id: int
-    telegram_id: int
-    username: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    created_at: datetime
 
 
 @dataclass
@@ -64,24 +52,6 @@ class PostLog:
     group_id: int
     message_id: int
     posted_at: datetime
-
-
-@dataclass
-class Lead:
-    """User message forwarded to admins."""
-    id: int
-    user_id: int  # our users.id
-    telegram_user_id: int
-    message_text: str
-    source_content_id: Optional[int]  # which post triggered (nullable)
-    status: LeadStatus
-    taken_by_telegram_id: Optional[int]
-    created_at: datetime
-    phone_number: Optional[str] = None  # from contact share
-    answered: bool = False
-    answered_at: Optional[datetime] = None  # when admin replied
-    answered: bool = False
-    answered_at: Optional[datetime] = None  # when admin replied
 
 
 @dataclass

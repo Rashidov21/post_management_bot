@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 KEYS = {
     "target_group_id": "0",
-    "admin_group_id": "0",  # group where leads are forwarded
     "banner_file_id": "",
 }
 
@@ -56,22 +55,8 @@ async def get_target_group_id() -> Optional[int]:
         return None
 
 
-async def get_admin_group_id() -> Optional[int]:
-    """Admin group ID for lead forwarding. None if not set or 0."""
-    raw = await get_setting("admin_group_id")
-    try:
-        n = int(raw)
-        return n if n != 0 else None
-    except (TypeError, ValueError):
-        return None
-
-
 async def set_target_group_id(group_id: int) -> None:
     await set_setting("target_group_id", str(group_id))
-
-
-async def set_admin_group_id(group_id: int) -> None:
-    await set_setting("admin_group_id", str(group_id))
 
 
 async def get_banner_file_id() -> Optional[str]:

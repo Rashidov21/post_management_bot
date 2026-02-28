@@ -11,11 +11,9 @@ from bot.database.connection import (
 from bot.database.models import (
     Admin,
     Content,
-    Lead,
     PostLog,
     Schedule,
     Setting,
-    User,
 )
 
 __all__ = [
@@ -24,10 +22,8 @@ __all__ = [
     "get_db",
     "init_db",
     "open_app_connection",
-    "User",
     "Admin",
     "Content",
-    "Lead",
     "PostLog",
     "Schedule",
     "Setting",

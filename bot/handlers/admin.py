@@ -16,7 +16,6 @@ from bot.texts import (
     HELP_HEADER, HELP_GUIDE,
     ADD_TEXT_EMPTY,
     TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
-    ADMIN_GROUP_SET, ADMIN_GROUP_PROMPT_ID, ADMIN_GROUP_ID_RECEIVED,
     GROUP_ID_SHOULD_BE_NEGATIVE,
     CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
@@ -47,7 +46,6 @@ from bot.texts import (
     BTN_ADD_POST,
     BTN_TARGET_GROUP,
     BTN_ADMINS,
-    BTN_LEAD_GROUP,
 )
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
@@ -55,7 +53,6 @@ from bot.keyboards.inline import (
     history_delete_keyboard,
     schedule_keyboard,
     confirm_target_group_keyboard,
-    confirm_admin_group_keyboard,
     post_add_confirm_keyboard,
     post_add_schedule_hour_keyboard,
     post_add_schedule_minute_keyboard,
@@ -80,9 +77,6 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
 })
-_REPLY_IGNORE_TEXTS = _ADMIN_BUTTON_TEXTS | frozenset({BTN_ADMINS})
-
-
 def _admin_kb(message: Message):
     return admin_main_keyboard(include_owner=is_owner(message.from_user.id or 0))
 router = Router(name="admin")
@@ -92,9 +86,6 @@ _schedule_pending: dict[int, dict] = {}
 # Nashr guruhi: ID kiritiladi, keyin inline tasdiq
 _target_group_awaiting: set[int] = set()
 _target_group_pending: dict[int, int] = {}
-# Lead/Admin guruhi: ID kiritiladi (hozir ishlatilmaydi, lekin kod ishlashi uchun)
-_admin_group_awaiting: set[int] = set()
-_admin_group_pending: dict[int, int] = {}
 # Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
 _admin_add_awaiting: set[int] = set()
 # Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
@@ -153,7 +144,6 @@ class _InGroupIdOrAdminFlowFilter(Filter):
         uid = message.from_user.id if message.from_user else 0
         return (
             uid in _target_group_awaiting
-            or uid in _admin_group_awaiting
             or uid in _admin_add_awaiting
         )
 
@@ -184,8 +174,12 @@ async def handle_admin_text_post(message: Message) -> None:
         _post_add_pending[uid] = {"content_type": "text", "text": text}
         await message.answer(text, reply_markup=post_add_confirm_keyboard())
         return
-    # Boshqa holatda: post qo'shish tugmalarini eslatish
-    await message.answer(POST_ADD_USE_BUTTON_HINT, reply_markup=_admin_kb(message))
+    # Hech qanday flow da yo'q — to'g'ridan-to'g'ri matnli post sifatida qabul qil
+    text = (message.text or "").strip()
+    if not text:
+        return
+    _text_post_pending[uid] = {"text": text}
+    await message.answer(text, reply_markup=text_post_confirm_keyboard())
 
 
 def _help_text() -> str:
@@ -843,10 +837,6 @@ async def admin_text_group_id(message: Message) -> None:
         _target_group_awaiting.discard(uid)
         _target_group_pending[uid] = gid
         await message.answer(TARGET_GROUP_ID_RECEIVED, reply_markup=confirm_target_group_keyboard())
-    elif uid in _admin_group_awaiting:
-        _admin_group_awaiting.discard(uid)
-        _admin_group_pending[uid] = gid
-        await message.answer(ADMIN_GROUP_ID_RECEIVED, reply_markup=confirm_admin_group_keyboard())
 
 
 @router.callback_query(F.data == "confirm_target_group")
@@ -1028,13 +1018,6 @@ async def cb_inline_schedule(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data == "inline_leads")
-async def cb_inline_leads(callback: CallbackQuery) -> None:
-    """Backward compatibility: leadlar menyusi o'rniga bosh menyu ko'rsatiladi."""
-    await cb_nav_home(callback)
-    await callback.answer()
-
-
 @router.callback_query(F.data == "nav_home")
 async def cb_nav_home(callback: CallbackQuery) -> None:
     # Admin/owner uchun bosh menyu: inline asosiy keyboard bilan /help matni
@@ -1045,79 +1028,11 @@ async def cb_nav_home(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data.regexp(re.compile(r"^reply_lead_(\d+)$")))
-async def cb_reply_lead(callback: CallbackQuery) -> None:
-    """Backward compatibility: leadga javob callback endi ishlatilmaydi."""
-    await callback.answer("Lead funksiyasi endi ishlatilmaydi.")
-
-
-@router.message(
-    F.chat.type == ChatType.PRIVATE,
-    F.text,
-    F.text.len() > 0,
-    F.text.filter(lambda t: t not in _REPLY_IGNORE_TEXTS),
-)
-async def admin_reply_to_lead_text(message: Message) -> None:
-    """Agar admin leadga javob kiritayotgan bo'lsa, foydalanuvchiga yuborish."""
-    uid = message.from_user.id if message.from_user else 0
-    # Lead oqimi olib tashlangan, bu handler endi hech narsa qilmaydi.
-    return
-@router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), F.text == "/set_admin_group")
-async def cmd_set_admin_group_in_group(message: Message) -> None:
-    uid = message.from_user.id if message.from_user else 0
-    if not is_owner(uid) and not await admin_service.is_admin(uid):
-        await message.answer(ADMIN_ONLY)
-        return
-    # Lead guruhi funksionalligi olib tashlangan; endi bu buyruq ishlatilmaydi.
-    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.")
-
-
-@router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/set_admin_group\s+(-?\d+)$")))
-async def cmd_set_admin_group_id_private(message: Message) -> None:
-    """Set admin group by ID from private chat: /set_admin_group -1001234567890."""
-    match = message.text and re.match(r"^/set_admin_group\s+(-?\d+)$", message.text)
-    if not match:
-        return
-    gid = int(match.group(1))
-    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
-
-
-@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/set_admin_group")
-@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_LEAD_GROUP)
-async def cmd_set_admin_group_private(message: Message) -> None:
-    await message.answer("Lead guruhi funksiyasi endi ishlatilmaydi.", reply_markup=_admin_kb(message))
-
-
-@router.callback_query(F.data == "confirm_admin_group")
-async def cb_confirm_admin_group(callback: CallbackQuery) -> None:
-    uid = callback.from_user.id if callback.from_user else 0
-    gid = _admin_group_pending.pop(uid, None)
-    if gid is not None:
-        await settings_service.set_admin_group_id(gid)
-        await callback.answer(ADMIN_GROUP_SET)
-    else:
-        await callback.answer()
-
-
-@router.callback_query(F.data == "cancel_admin_group")
-async def cb_cancel_admin_group(callback: CallbackQuery) -> None:
-    uid = callback.from_user.id if callback.from_user else 0
-    _admin_group_pending.pop(uid, None)
-    _admin_group_awaiting.discard(uid)
-    await callback.answer("Bekor qilindi.")
-
-
 @router.callback_query(F.data == "cancel_admin_add")
 async def cb_cancel_admin_add(callback: CallbackQuery) -> None:
     uid = callback.from_user.id if callback.from_user else 0
     _admin_add_awaiting.discard(uid)
     await callback.answer("Bekor qilindi.")
-
-
-@router.callback_query(F.data.regexp(re.compile(r"^take_lead_(\d+)$")))
-async def cb_take_lead(callback: CallbackQuery) -> None:
-    """Backward compatibility: lead olish endi qo'llab-quvvatlanmaydi."""
-    await callback.answer("Lead funksiyasi endi ishlatilmaydi.")
 
 
 # ---------- Owner inline: admin list / help (only owner can use) ----------

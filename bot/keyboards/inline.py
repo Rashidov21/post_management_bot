@@ -12,7 +12,6 @@ from bot.texts import (
     BTN_HISTORY_BACK,
     BTN_INLINE_HISTORY,
     BTN_CONFIRM_TARGET_GROUP,
-    BTN_CONFIRM_ADMIN_GROUP,
     BTN_POST_CONFIRM,
     BTN_POST_CANCEL,
     POST_NOT_ASSIGNED,
@@ -92,13 +91,6 @@ def confirm_target_group_keyboard() -> InlineKeyboardMarkup:
     """After target group ID entered: Guruhni belgilash."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=BTN_CONFIRM_TARGET_GROUP, callback_data="confirm_target_group")],
-    ])
-
-
-def confirm_admin_group_keyboard() -> InlineKeyboardMarkup:
-    """After lead/admin group ID entered: Guruhni belgilash."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=BTN_CONFIRM_ADMIN_GROUP, callback_data="confirm_admin_group")],
     ])
 
 

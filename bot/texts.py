@@ -8,11 +8,6 @@ WELCOME = (
     "Assalomu alaykum! Botimizga xush kelibsiz.\n\n"
     "Bu bot orqali mahsulot postlarini reja bo'yicha guruhga joylaysiz."
 )
-# Oddiy user guruh posti orqali kirmaganda (faqat /start)
-WELCOME_USER_ONLY_VIA_GROUP = (
-    "Assalomu alaykum!\n\n"
-    "Mahsulot haqida batafsil ma'lumot olish uchun guruhimizdagi ma'lumotlardan foydalaning."
-)
 USER_SIMPLE_REPLY = (
     "Mahsulot haqida bilmoqchi bo'lsangiz guruhimizda adminlar haqida ma'lumotlar orqali bog'laning !"
 )
@@ -36,10 +31,6 @@ TARGET_GROUP_SET = "Nashr guruhi o'rnatildi."
 TARGET_GROUP_PROMPT_ID = "Nashr guruhi ID sini kiriting (masalan -1001234567890):"
 TARGET_GROUP_ID_RECEIVED = "ID qabul qilindi. Botni shu guruhga qo'shing va admin sifatida qo'ying. Keyin tasdiqlang."
 BTN_CONFIRM_TARGET_GROUP = "Guruhni belgilash"
-ADMIN_GROUP_SET = "Admin guruhi o'rnatildi."
-ADMIN_GROUP_PROMPT_ID = "Lead guruhi ID sini kiriting (masalan -1001234567890):"
-ADMIN_GROUP_ID_RECEIVED = "ID qabul qilindi. Botni shu guruhga qo'shing va admin qiling. Keyin tasdiqlang."
-BTN_CONFIRM_ADMIN_GROUP = "Guruhni belgilash"
 GROUP_ID_SHOULD_BE_NEGATIVE = "Guruh ID odatda manfiy bo'ladi (masalan -1001234567890). Iltimos, guruhda /set_target_group yuborib oling yoki to'g'ri manfiy ID kiriting."
 CONTENT_SAVED = "Kontent saqlandi va aktiv post sifatida belgilandi."
 NO_ACTIVE_CONTENT = "Aktiv post yo'q. Avval kontent yuboring (rasm, video yoki matn)."
@@ -85,14 +76,11 @@ ADMIN_ONLY = "Bu buyruqni faqat adminlar ishlata oladi."
 LIST_ADMINS_HEADER = "Adminlar:"
 
 # Reply / Inline button labels
-BTN_USER_WRITE = "📩 Xabar yuborish"
 BTN_HELP = "📋 Yordam"
 BTN_HISTORY = "📜 Postlar tarixi"
 BTN_SCHEDULE = "⏰ Post vaqtlari"
 BTN_TARGET_GROUP = "📢 Nashr guruhi"
-BTN_LEAD_GROUP = "👥 Lead guruhi"
 BTN_ADMINS = "👤 Adminlar"
-BTN_USER_ADMINS = "👥 Adminlar ro'yxati"
 BTN_ADMIN_LIST = "Ro'yxat"
 BTN_ADMIN_ADD_HINT = "Qo'shish (reply)"
 BTN_ADMIN_REMOVE_HINT = "O'chirish (reply)"
@@ -112,10 +100,6 @@ PUBLISHING_ENABLED = "Nashr yoqilgan"
 PUBLISHING_DISABLED = "Nashr o'chirilgan"
 BTN_PUBLISHING_ON = "Nashr yoqish"
 BTN_PUBLISHING_OFF = "Nashr o'chirish"
-USER_WRITE_HINT = "Quyida xabaringizni yozing — adminlar ko'radi va javob beradi."
-USER_PICK_PRODUCT = "Qaysi mahsulot (post) haqida yozmoqchisiz? Quyidagilardan birini tanlang yoki «Umumiy savol» ni bosing."
-USER_CONTACT_RECEIVED = "Raqam qabul qilindi. Endi xabaringizni yuboring."
-USER_ADMINS_LIST_HEADER = "Adminlar bilan bog'lanish uchun quyidagi tugmalar orqali chatga o'ting."
 BTN_NAV_BACK = "◀️ Orqaga"
 BTN_NAV_HOME = "🏠 Bosh menyu"
 BTN_NAV_REFRESH = "🔄 Yangilash"
