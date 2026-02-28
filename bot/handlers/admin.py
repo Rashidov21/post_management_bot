@@ -29,6 +29,9 @@ from bot.texts import (
     POST_ADD_SEND_MEDIA, POST_ADD_SEND_CAPTION, POST_ADD_CAPTION_ADDED,
     POST_ADD_SAVED, POST_ADD_CANCELLED, POST_ADD_ALREADY_PENDING,
     POST_ADD_PICK_TIME_HOUR, POST_ADD_PICK_TIME_MINUTE,
+    POST_ADD_USE_BUTTON_HINT,
+    TEXT_POST_SEND_PROMPT,
+    BTN_ADD_TEXT_POST,
     ADMIN_ONLY,
 )
 from bot.services import (
@@ -56,6 +59,9 @@ from bot.keyboards.inline import (
     post_add_confirm_keyboard,
     post_add_schedule_hour_keyboard,
     post_add_schedule_minute_keyboard,
+    text_post_confirm_keyboard,
+    text_post_schedule_hour_keyboard,
+    text_post_schedule_minute_keyboard,
     schedule_hour_keyboard,
     schedule_minute_keyboard,
     schedule_pick_post_keyboard,
@@ -71,6 +77,7 @@ _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
+    BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
 })
 _REPLY_IGNORE_TEXTS = _ADMIN_BUTTON_TEXTS | frozenset({BTN_ADMINS})
@@ -95,8 +102,13 @@ _post_add_waiting_media: set[int] = set()
 _post_add_pending: dict[int, dict] = {}  # uid -> {content_type, file_id, caption}
 # Post qo'shish: Yakunlashdan keyin vaqt tanlash — {content_type, file_id?, caption?, text?, hour?}
 _post_add_confirm_pending: dict[int, dict] = {}
-# Postlar tarixi: yuborilgan xabarlar (chat_id, message_id) — refresh da o'chirish uchun
-_history_message_ids: dict[int, list[tuple[int, int]]] = {}
+# Matnli post qo'shish — alohida pending (tugma orqali boshlanadi)
+_text_post_awaiting: set[int] = set()  # matn kutilmoqda
+_text_post_pending: dict[int, dict] = {}  # uid -> {"text": str}
+_text_post_confirm_pending: dict[int, dict] = {}  # uid -> {"text": str, "hour": int, "minute": str}
+# Postlar tarixi: har bir post uchun content_id -> (chat_id, message_id); "_header" -> header xabari
+# Qo'shish/o'chirishda chatga qayta tashlanmaydi, faqat bitta xabar o'chiriladi yoki yangi post yuboriladi
+_history_message_ids: dict[int, dict] = {}  # uid -> { content_id: (chat_id, message_id), "_header": (chat_id, message_id) }
 
 
 class _AdminAddAwaitingFilter(Filter):
@@ -127,6 +139,13 @@ class _PostAddWaitingMediaFilter(Filter):
         return (message.from_user.id if message.from_user else 0) in _post_add_waiting_media
 
 
+class _TextPostAwaitingFilter(Filter):
+    """True when admin clicked Matnli post qo'shish and is waiting to send text."""
+
+    async def __call__(self, message: Message) -> bool:
+        return (message.from_user.id if message.from_user else 0) in _text_post_awaiting
+
+
 class _InGroupIdOrAdminFlowFilter(Filter):
     """True when user is entering group ID or admin ID (boshqa flowda); matnli post uchun emas."""
 
@@ -140,18 +159,33 @@ class _InGroupIdOrAdminFlowFilter(Filter):
 
 
 async def handle_admin_text_post(message: Message) -> None:
-    """Matnli post qo'shish — user yoki admin router dan chaqiriladi (admin/owner matn yuborganda)."""
+    """Admin/owner matn yuborganda: matnli post flow (alohida) yoki media post flow, yoki tugma eslatmasi."""
     uid = message.from_user.id if message.from_user else 0
+    # Alohida matnli post flow — faqat "Matnli post qo'shish" tugmasini bosgandan keyin
+    if uid in _text_post_awaiting:
+        _text_post_awaiting.discard(uid)
+        text = (message.text or "").strip()
+        if not text:
+            await message.answer(TEXT_POST_SEND_PROMPT, reply_markup=_admin_kb(message))
+            return
+        _text_post_pending[uid] = {"text": text}
+        await message.answer(text, reply_markup=text_post_confirm_keyboard())
+        return
+    # Media post flow — "Post qo'shish" tugmasini bosgandan keyin matn
     if uid in _post_add_pending:
         await message.answer(POST_ADD_ALREADY_PENDING, reply_markup=post_add_confirm_keyboard())
         return
-    _post_add_waiting_media.discard(uid)
-    text = (message.text or "").strip()
-    if not text:
-        await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+    if uid in _post_add_waiting_media:
+        _post_add_waiting_media.discard(uid)
+        text = (message.text or "").strip()
+        if not text:
+            await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+            return
+        _post_add_pending[uid] = {"content_type": "text", "text": text}
+        await message.answer(text, reply_markup=post_add_confirm_keyboard())
         return
-    _post_add_pending[uid] = {"content_type": "text", "text": text}
-    await message.answer(text, reply_markup=post_add_confirm_keyboard())
+    # Boshqa holatda: post qo'shish tugmalarini eslatish
+    await message.answer(POST_ADD_USE_BUTTON_HINT, reply_markup=_admin_kb(message))
 
 
 def _help_text() -> str:
@@ -173,6 +207,14 @@ async def btn_add_post(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _post_add_waiting_media.add(uid)
     await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+
+
+# ---------- Matnli post qo'shish (alohida flow) ----------
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_ADD_TEXT_POST)
+async def btn_add_text_post(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    _text_post_awaiting.add(uid)
+    await message.answer(TEXT_POST_SEND_PROMPT, reply_markup=_admin_kb(message))
 
 
 # ---------- Matnli post (caption dan oldin tekshiriladi) ----------
@@ -313,11 +355,16 @@ async def cb_post_add_minute(callback: CallbackQuery) -> None:
             set_ok = await schedule_service.set_schedule_content(schedule_id, content.id)
             if not set_ok:
                 logger.warning("Post qo'shishda mavjud vaqtga content biriktirilmadi: schedule_id=%s, content_id=%s", schedule_id, content.id)
+    chat_id = callback.message.chat.id
+    await _send_single_post(callback.bot, chat_id, content, uid)
     await callback.answer(POST_ADD_SAVED)
-    await callback.message.edit_text(
-        (callback.message.text or "") + "\n\n" + CONTENT_SAVED,
-        reply_markup=history_delete_keyboard(content.id),
-    )
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + CONTENT_SAVED,
+            reply_markup=None,
+        )
+    except Exception:
+        pass
 
 
 @router.callback_query(F.data == "cancel_post_add")
@@ -342,6 +389,133 @@ async def cb_post_add_time_cancel(callback: CallbackQuery) -> None:
     )
 
 
+# ---------- Matnli post: Yakunlash / Bekor / vaqt tanlash ----------
+@router.callback_query(F.data == "confirm_text_post_add")
+async def cb_confirm_text_post_add(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    data = _text_post_pending.pop(uid, None)
+    if not data:
+        await callback.answer(POST_ADD_CANCELLED)
+        return
+    _text_post_confirm_pending[uid] = data
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + POST_ADD_PICK_TIME_HOUR,
+            reply_markup=text_post_schedule_hour_keyboard(),
+        )
+    except Exception:
+        await callback.message.answer(
+            (callback.message.text or "") + "\n\n" + POST_ADD_PICK_TIME_HOUR,
+            reply_markup=text_post_schedule_hour_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "cancel_text_post_add")
+async def cb_cancel_text_post_add(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    _text_post_pending.pop(uid, None)
+    await callback.answer(POST_ADD_CANCELLED)
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + POST_ADD_CANCELLED,
+            reply_markup=None,
+        )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^text_post_h_(\d+)$")))
+async def cb_text_post_hour(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    pending = _text_post_confirm_pending.get(uid)
+    if not pending:
+        await callback.answer(POST_ADD_CANCELLED)
+        return
+    match = re.match(r"^text_post_h_(\d+)$", callback.data or "")
+    if not match:
+        await callback.answer()
+        return
+    pending["hour"] = int(match.group(1))
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + POST_ADD_PICK_TIME_MINUTE,
+            reply_markup=text_post_schedule_minute_keyboard(),
+        )
+    except Exception:
+        await callback.message.answer(
+            (callback.message.text or "") + "\n\n" + POST_ADD_PICK_TIME_MINUTE,
+            reply_markup=text_post_schedule_minute_keyboard(),
+        )
+
+
+@router.callback_query(F.data.regexp(re.compile(r"^text_post_m_(\d{2})$")))
+async def cb_text_post_minute(callback: CallbackQuery) -> None:
+    from bot.scheduler import runner as scheduler_runner
+
+    uid = callback.from_user.id if callback.from_user else 0
+    pending = _text_post_confirm_pending.pop(uid, None)
+    if not pending:
+        await callback.answer(POST_ADD_CANCELLED)
+        return
+    match = re.match(r"^text_post_m_(\d{2})$", callback.data or "")
+    if not match:
+        await callback.answer()
+        return
+    minute_str = match.group(1)
+    hour = pending.get("hour", 0)
+    time_str = schedule_service.parse_time(f"{hour:02d}:{minute_str}") or f"{hour:02d}:{minute_str}"
+    content = await content_service.add_content(
+        content_type="text",
+        created_by=uid,
+        text=pending.get("text") or "",
+    )
+    schedule_id = await schedule_service.add_schedule(time_str)
+    if schedule_id is not None:
+        set_ok = await schedule_service.set_schedule_content(schedule_id, content.id)
+        if not set_ok:
+            logger.warning("Matnli post qo'shishda rejaga content biriktirilmadi: schedule_id=%s, content_id=%s", schedule_id, content.id)
+        me = await callback.bot.get_me()
+        bot_username = me.username or ""
+        job_ok = scheduler_runner.add_schedule_job(callback.bot, bot_username, schedule_id, time_str)
+        if not job_ok:
+            logger.warning(
+                "Matnli post qo'shishda reja job qo'shilmadi: schedule_id=%s, time_str=%s",
+                schedule_id, time_str,
+            )
+    else:
+        schedule_id = await schedule_service.get_schedule_id_by_time_str(time_str)
+        if schedule_id:
+            set_ok = await schedule_service.set_schedule_content(schedule_id, content.id)
+            if not set_ok:
+                logger.warning("Matnli post qo'shishda mavjud vaqtga content biriktirilmadi: schedule_id=%s, content_id=%s", schedule_id, content.id)
+    chat_id = callback.message.chat.id
+    await _send_single_post(callback.bot, chat_id, content, uid)
+    await callback.answer(POST_ADD_SAVED)
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + CONTENT_SAVED,
+            reply_markup=None,
+        )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "text_post_time_cancel")
+async def cb_text_post_time_cancel(callback: CallbackQuery) -> None:
+    uid = callback.from_user.id if callback.from_user else 0
+    _text_post_confirm_pending.pop(uid, None)
+    await callback.answer(POST_ADD_CANCELLED)
+    try:
+        await callback.message.edit_text(
+            (callback.message.text or "") + "\n\n" + POST_ADD_CANCELLED,
+            reply_markup=None,
+        )
+    except Exception:
+        pass
+
+
 @router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/add_text\s+(.+)$", re.DOTALL)))
 async def admin_add_text_content(message: Message) -> None:
     """Add text-only post: /add_text <matn>."""
@@ -357,7 +531,9 @@ async def admin_add_text_content(message: Message) -> None:
         created_by=message.from_user.id,
         text=text,
     )
-    await message.answer(CONTENT_SAVED, reply_markup=history_delete_keyboard(content.id))
+    uid = message.from_user.id if message.from_user else 0
+    await _send_single_post(message.bot, message.chat.id, content, uid)
+    await message.answer(CONTENT_SAVED, reply_markup=_admin_kb(message))
 
 
 @router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^/add_text\s*$")))
@@ -424,19 +600,56 @@ def _format_posted_at(dt) -> str:
     return str(dt)
 
 
+def _cap_or_text(p, max_cap=1024, max_text=4096) -> tuple:
+    """Caption (photo/video) yoki to'liq matn (text post) — kesilgan."""
+    cap = (p.caption or p.text or "").strip() or ""
+    if len(cap) > max_cap:
+        cap = cap[: max_cap - 3] + "…"
+    text = (p.text or p.caption or "").strip() or f"#{p.id}"
+    if len(text) > max_text:
+        text = text[: max_text - 3] + "…"
+    return cap, text
+
+
+async def _send_single_post(bot, chat_id, content, uid: int) -> None:
+    """Bitta postni chatga yuboradi va history map ga (content_id -> (chat_id, message_id)) qo'shadi."""
+    if _history_message_ids.get(uid) is None:
+        _history_message_ids[uid] = {}
+    cap, text = _cap_or_text(content)
+    try:
+        if content.content_type == "photo" and content.file_id:
+            m = await bot.send_photo(
+                chat_id, content.file_id, caption=cap, reply_markup=history_delete_keyboard(content.id)
+            )
+            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
+        elif content.content_type == "video" and content.file_id:
+            m = await bot.send_video(
+                chat_id, content.file_id, caption=cap, reply_markup=history_delete_keyboard(content.id)
+            )
+            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
+        elif content.content_type == "text" or (getattr(content, "text", None) and (content.text or "").strip()):
+            m = await bot.send_message(
+                chat_id, text, reply_markup=history_delete_keyboard(content.id)
+            )
+            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
+    except Exception as e:
+        logger.exception("Single post %s send failed: %s", content.id, e)
+
+
 async def _send_history(target):
-    """Send history: header + har bir post to'liq (rasm/video/matn) va O'chirish tugmasi."""
+    """Send history: header + har bir post (o'zida inline O'chirish). Eski xabarlar o'chiriladi, keyin qayta yuboriladi."""
     bot = target.bot if isinstance(target, Message) else target.message.bot
     chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
     uid = (target.from_user.id if target.from_user else 0) if isinstance(target, Message) else (target.from_user.id if target.from_user else 0)
-    for cid, mid in _history_message_ids.get(uid, []):
+    prev = _history_message_ids.get(uid) or {}
+    for key in list(prev):
+        cid, mid = prev[key]
         try:
             await bot.delete_message(cid, mid)
         except Exception:
             pass
-    _history_message_ids[uid] = []
+    _history_message_ids[uid] = {}
     posts = await content_service.list_content(limit=10, include_deleted=False)
-    # Avval qo'shilgan post avval (yuqorida), keyin qo'shilgan keyin
     posts = sorted(posts, key=lambda p: p.id)
     if not posts:
         msg = await bot.send_message(
@@ -444,40 +657,16 @@ async def _send_history(target):
             HISTORY_HEADER + "\n(bo'sh)",
             reply_markup=history_refresh_keyboard(),
         )
-        _history_message_ids[uid] = [(chat_id, msg.message_id)]
+        _history_message_ids[uid]["_header"] = (chat_id, msg.message_id)
         return
     header_msg = await bot.send_message(
         chat_id,
         HISTORY_HEADER,
         reply_markup=history_refresh_keyboard(),
     )
-    message_ids = [(chat_id, header_msg.message_id)]
+    _history_message_ids[uid]["_header"] = (chat_id, header_msg.message_id)
     for p in posts:
-        cap = (p.caption or p.text or "").strip() or ""
-        if len(cap) > 1024:
-            cap = cap[:1021] + "…"
-        try:
-            if p.content_type == "photo" and p.file_id:
-                m = await bot.send_photo(
-                    chat_id, p.file_id, caption=cap, reply_markup=history_delete_keyboard(p.id)
-                )
-                message_ids.append((chat_id, m.message_id))
-            elif p.content_type == "video" and p.file_id:
-                m = await bot.send_video(
-                    chat_id, p.file_id, caption=cap, reply_markup=history_delete_keyboard(p.id)
-                )
-                message_ids.append((chat_id, m.message_id))
-            elif p.content_type == "text" or (getattr(p, "text", None) and (p.text or "").strip()):
-                text = (p.text or p.caption or "").strip() or f"#{p.id}"
-                if len(text) > 4096:
-                    text = text[:4093] + "…"
-                m = await bot.send_message(
-                    chat_id, text, reply_markup=history_delete_keyboard(p.id)
-                )
-                message_ids.append((chat_id, m.message_id))
-        except Exception as e:
-            logger.exception("History post %s send failed: %s", p.id, e)
-    _history_message_ids[uid] = message_ids
+        await _send_single_post(bot, chat_id, p, uid)
 
 
 @router.message(F.chat.type == ChatType.PRIVATE, F.text == "/history")
@@ -502,7 +691,6 @@ async def cb_pub_on(callback: CallbackQuery) -> None:
     ok = await content_service.set_content_publishing_enabled(cid, True)
     if ok:
         await callback.answer("Nashr yoqildi.")
-        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 
@@ -517,7 +705,6 @@ async def cb_pub_off(callback: CallbackQuery) -> None:
     ok = await content_service.set_content_publishing_enabled(cid, False)
     if ok:
         await callback.answer("Nashr o'chirildi.")
-        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 
@@ -544,8 +731,14 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
     cid = int(match.group(1))
     ok = await content_service.delete_content(cid)
     if ok:
+        uid = callback.from_user.id if callback.from_user else 0
+        msg_loc = _history_message_ids.get(uid, {}).pop(cid, None)
+        if msg_loc:
+            try:
+                await callback.bot.delete_message(msg_loc[0], msg_loc[1])
+            except Exception:
+                pass
         await callback.answer(POST_DELETED)
-        await _send_history(callback)
     else:
         await callback.answer(POST_NOT_FOUND)
 
@@ -562,7 +755,6 @@ async def cb_post_now(callback: CallbackQuery) -> None:
     ok = await posting_module.post_content_by_id_to_group(callback.bot, bot_username, content_id)
     if ok:
         await callback.answer(POST_NOW_SUCCESS)
-        await _send_history(callback)
     else:
         await callback.answer(POST_NOW_FAILED)
 

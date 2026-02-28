@@ -16,14 +16,15 @@ WELCOME_USER_ONLY_VIA_GROUP = (
 USER_SIMPLE_REPLY = (
     "Mahsulot haqida bilmoqchi bo'lsangiz guruhimizda adminlar haqida ma'lumotlar orqali bog'laning !"
 )
+POST_ADD_USE_BUTTON_HINT = "Post qo'shish uchun «Post qo'shish» yoki «Matnli post qo'shish» tugmasini bosing."
 BACK = "Orqaga"
 
 # Admin / Owner
 HELP_HEADER = "Yordam"
 HELP_GUIDE = (
     "📌 Post qo'shish — «➕ Post qo'shish» tugmasi: rasm, video yoki matn yuboring, ixtiyoriy caption, «Yakunlash», "
-    "so'ng nashr vaqtini (soat va minut) tanlang. Post saqlanadi va shu vaqtda guruhda avtomatik chiqadi.\n\n"
-    "📜 Postlar tarixi — oxirgi qo'shilgan postlar ro'yxati, o'chirish tugmasi orqali postni bazadan o'chirish mumkin.\n\n"
+    "so'ng nashr vaqtini (soat va minut) tanlang. «📝 Matnli post qo'shish» — faqat matn uchun alohida oqim.\n\n"
+    "📜 Postlar tarixi — oxirgi qo'shilgan postlar ro'yxati, har bir post ostida O'chirish tugmasi. Qo'shish/o'chirishda ro'yxat qayta yuborilmaydi.\n\n"
     "📢 Nashr guruhi — postlar yuboriladigan guruh. Sozlash: guruhda yoki shaxsiy chatda tegishli tugma/menyu orqali.\n\n"
     "👤 Adminlar — faqat egasi admin qo'shadi yoki olib tashlaydi (adminlar ro'yxati va tegishli tugmalar orqali)."
 )
@@ -44,6 +45,8 @@ CONTENT_SAVED = "Kontent saqlandi va aktiv post sifatida belgilandi."
 NO_ACTIVE_CONTENT = "Aktiv post yo'q. Avval kontent yuboring (rasm, video yoki matn)."
 # Post qo'shish oqimi
 BTN_ADD_POST = "➕ Post qo'shish"
+BTN_ADD_TEXT_POST = "📝 Matnli post qo'shish"
+TEXT_POST_SEND_PROMPT = "Matnli post uchun matnni yuboring."
 POST_ADD_SEND_MEDIA = "Post uchun rasm, video yoki matn yuboring."
 POST_ADD_SEND_CAPTION = "Matn (caption) yozing (ixtiyoriy) yoki «Yakunlash» tugmasini bosing."
 POST_ADD_CAPTION_ADDED = "Matn qo'shildi. «Yakunlash» tugmasini bosing."

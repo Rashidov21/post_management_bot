@@ -135,6 +135,39 @@ def post_add_schedule_minute_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def text_post_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Matnli post qo'shish: Yakunlash va Bekor qilish (alohida callback_data)."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=BTN_POST_CONFIRM, callback_data="confirm_text_post_add"),
+            InlineKeyboardButton(text=BTN_POST_CANCEL, callback_data="cancel_text_post_add"),
+        ],
+    ])
+
+
+def text_post_schedule_hour_keyboard() -> InlineKeyboardMarkup:
+    """Matnli post: nashr soati — text_post_h_0 … text_post_h_23."""
+    rows = []
+    for h in range(24):
+        btn = InlineKeyboardButton(text=f"{h:02d}", callback_data=f"text_post_h_{h}")
+        if not rows or len(rows[-1]) >= 6:
+            rows.append([btn])
+        else:
+            rows[-1].append(btn)
+    rows.append([InlineKeyboardButton(text=BTN_POST_CANCEL, callback_data="text_post_time_cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def text_post_schedule_minute_keyboard() -> InlineKeyboardMarkup:
+    """Matnli post: minutlar — text_post_m_00 … text_post_m_59."""
+    minutes = [f"{m:02d}" for m in range(60)]
+    rows = []
+    for i in range(0, 60, 6):
+        row = [InlineKeyboardButton(text=m, callback_data=f"text_post_m_{m}") for m in minutes[i : i + 6]]
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
     """Admin/Owner: asosiy amallar — faqat Postlar tarixi."""
     return InlineKeyboardMarkup(inline_keyboard=[

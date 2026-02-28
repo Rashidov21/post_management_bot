@@ -18,6 +18,7 @@ from bot.texts import (
     BTN_HELP,
     BTN_HISTORY,
     BTN_ADD_POST,
+    BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
 )
 from bot.services import admin_service
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = Router(name="user")
 
 # Standart tugma matnlari — bular post flow'ga tushmasin, boshqa handlerga qoladi
-STANDARD_BUTTON_TEXTS = frozenset({BTN_HELP, BTN_HISTORY, BTN_ADD_POST, BTN_TARGET_GROUP})
+STANDARD_BUTTON_TEXTS = frozenset({BTN_HELP, BTN_HISTORY, BTN_ADD_POST, BTN_ADD_TEXT_POST, BTN_TARGET_GROUP})
 
 
 @router.message(CommandStart(deep_link=True))
