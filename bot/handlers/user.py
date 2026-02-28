@@ -56,6 +56,7 @@ async def cmd_start(message: Message) -> None:
 )
 async def private_text_message(message: Message) -> None:
     """Barcha private matn (buyruq/tugma emas): handler ichida admin/owner yoki oddiy user tekshiriladi."""
+    await message.answer("Matn qabul qilindi")
     if not message.from_user:
         return
     uid = message.from_user.id
