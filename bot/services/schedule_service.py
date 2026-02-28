@@ -127,7 +127,7 @@ async def add_schedule_content(schedule_id: int, content_id: int) -> bool:
     conn = get_db()
     try:
         async with conn.execute(
-            "SELECT id FROM content_schedule WHERE schedule_id = ? AND content_id = ?",
+            "SELECT schedule_id FROM content_schedule WHERE schedule_id = ? AND content_id = ?",
             (schedule_id, content_id),
         ) as cur:
             existing = await cur.fetchone()
@@ -139,8 +139,12 @@ async def add_schedule_content(schedule_id: int, content_id: int) -> bool:
         )
         await conn.commit()
         return True
-    except Exception:
+    except Exception as e:
         await conn.rollback()
+        logger.exception(
+            "add_schedule_content xatosi: schedule_id=%s, content_id=%s: %s",
+            schedule_id, content_id, e,
+        )
         return False
 
 

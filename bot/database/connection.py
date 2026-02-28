@@ -74,10 +74,11 @@ async def init_db() -> None:
             );
 
             CREATE TABLE IF NOT EXISTS content_schedule (
-                schedule_id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL,
                 content_id INTEGER NOT NULL,
                 FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
-                FOREIGN KEY (content_id) REFERENCES content(id)
+                FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS posts_log (
@@ -135,15 +136,6 @@ async def init_db() -> None:
         except Exception:
             pass
         try:
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS content_schedule (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    schedule_id INTEGER NOT NULL,
-                    content_id INTEGER NOT NULL,
-                    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
-                    FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
-                )
-            """)
             await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_content_schedule_schedule ON content_schedule(schedule_id)"
             )
@@ -158,6 +150,7 @@ async def init_db() -> None:
             async with conn.execute("PRAGMA table_info(content_schedule)") as cur:
                 cols = {row["name"] for row in await cur.fetchall()}
             if "id" not in cols:
+                logger.info("content_schedule jadvalini yangi sxemaga o'tkazish...")
                 await conn.execute("ALTER TABLE content_schedule RENAME TO content_schedule_old")
                 await conn.execute("""
                     CREATE TABLE content_schedule (
@@ -173,8 +166,9 @@ async def init_db() -> None:
                 )
                 await conn.execute("DROP TABLE content_schedule_old")
                 await conn.commit()
-        except Exception:
-            pass
+                logger.info("content_schedule yangilandi: bir vaqtga bir nechta post biriktirish mumkin.")
+        except Exception as e:
+            logger.exception("content_schedule migration xatosi: %s", e)
         try:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS content_admin_messages (
