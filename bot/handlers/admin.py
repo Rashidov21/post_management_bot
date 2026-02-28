@@ -105,6 +105,14 @@ async def handle_admin_text_post(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     text = (message.text or "").strip()
 
+    # 0. Nashr guruhi ID kiritish flow'ida — matn raqam bo'lsa, group ID sifatida qabul qil
+    if uid in _target_group_awaiting and re.match(r"^-?\d+$", text):
+        _target_group_awaiting.discard(uid)
+        gid = int(text)
+        _target_group_pending[uid] = gid
+        await message.answer(TARGET_GROUP_ID_RECEIVED, reply_markup=confirm_target_group_keyboard())
+        return
+
     # 1. "Matnli post qo'shish" tugmasi bosilgan — matn kiritish kutilmoqda
     if uid in _text_post_awaiting:
         _text_post_awaiting.discard(uid)
