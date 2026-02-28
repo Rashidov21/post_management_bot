@@ -109,34 +109,6 @@ class _AdminAddAwaitingFilter(Filter):
         return (message.from_user.id if message.from_user else 0) in _admin_add_awaiting
 
 
-class _PostAddPendingFilter(Filter):
-    """True when user has sent media for new post and is in caption/confirm step."""
-
-    async def __call__(self, message: Message) -> bool:
-        return (message.from_user.id if message.from_user else 0) in _post_add_pending
-
-
-class _NotPostAddPendingFilter(Filter):
-    """True when user is NOT in caption step (yangi matnli post yoki boshqa)."""
-
-    async def __call__(self, message: Message) -> bool:
-        return (message.from_user.id if message.from_user else 0) not in _post_add_pending
-
-
-class _PostAddWaitingMediaFilter(Filter):
-    """True when user clicked Post qo'shish and is waiting to send photo/video/text."""
-
-    async def __call__(self, message: Message) -> bool:
-        return (message.from_user.id if message.from_user else 0) in _post_add_waiting_media
-
-
-class _TextPostAwaitingFilter(Filter):
-    """True when admin clicked Matnli post qo'shish and is waiting to send text."""
-
-    async def __call__(self, message: Message) -> bool:
-        return (message.from_user.id if message.from_user else 0) in _text_post_awaiting
-
-
 class _InGroupIdOrAdminFlowFilter(Filter):
     """True when user is entering group ID or admin ID (boshqa flowda); matnli post uchun emas."""
 
@@ -149,33 +121,42 @@ class _InGroupIdOrAdminFlowFilter(Filter):
 
 
 async def handle_admin_text_post(message: Message) -> None:
-    """Admin/owner matn yuborganda: matnli post flow (alohida) yoki media post flow, yoki tugma eslatmasi."""
+    """Admin/owner xabar yuborganda barcha matn holatlari shu yerda hal qilinadi."""
     uid = message.from_user.id if message.from_user else 0
-    # Alohida matnli post flow — faqat "Matnli post qo'shish" tugmasini bosgandan keyin
+    text = (message.text or "").strip()
+
+    # 1. "Matnli post qo'shish" tugmasi bosilgan — matn kiritish kutilmoqda
     if uid in _text_post_awaiting:
         _text_post_awaiting.discard(uid)
-        text = (message.text or "").strip()
         if not text:
             await message.answer(TEXT_POST_SEND_PROMPT, reply_markup=_admin_kb(message))
             return
         _text_post_pending[uid] = {"text": text}
         await message.answer(text, reply_markup=text_post_confirm_keyboard())
         return
-    # Media post flow — "Post qo'shish" tugmasini bosgandan keyin matn
+
+    # 2. Rasm/video yuborilgan — caption kiritish kutilmoqda
     if uid in _post_add_pending:
-        await message.answer(POST_ADD_ALREADY_PENDING, reply_markup=post_add_confirm_keyboard())
+        pending = _post_add_pending[uid]
+        if pending.get("content_type") in ("photo", "video"):
+            pending["caption"] = text
+            await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+        else:
+            # Matnli post allaqachon bor — Yakunlash yoki Bekor bosish kerak
+            await message.answer(POST_ADD_ALREADY_PENDING, reply_markup=post_add_confirm_keyboard())
         return
+
+    # 3. "Post qo'shish" tugmasi bosilgan — rasm/video/matn kutilmoqda, matn keldi
     if uid in _post_add_waiting_media:
         _post_add_waiting_media.discard(uid)
-        text = (message.text or "").strip()
         if not text:
             await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
             return
         _post_add_pending[uid] = {"content_type": "text", "text": text}
         await message.answer(text, reply_markup=post_add_confirm_keyboard())
         return
-    # Hech qanday flow da yo'q — to'g'ridan-to'g'ri matnli post sifatida qabul qil
-    text = (message.text or "").strip()
+
+    # 4. Hech qanday aktiv flow yo'q — yangi matnli post sifatida qabul qil
     if not text:
         return
     _text_post_pending[uid] = {"text": text}
@@ -211,27 +192,7 @@ async def btn_add_text_post(message: Message) -> None:
     await message.answer(TEXT_POST_SEND_PROMPT, reply_markup=_admin_kb(message))
 
 
-# ---------- Matnli post (caption dan oldin tekshiriladi) ----------
-@router.message(
-    F.chat.type == ChatType.PRIVATE,
-    F.text,
-    ~F.text.startswith("/"),
-    F.text.filter(lambda t: t not in _ADMIN_BUTTON_TEXTS),
-    _NotPostAddPendingFilter(),
-)
-async def admin_post_add_text(message: Message) -> None:
-    """Post qo'shish: matn yuborilganda — pending ga qo'shish, Yakunlash/Bekor ko'rsatish. Caption flow'da emas (admin_post_add_caption keyin ishlaydi)."""
-    uid = message.from_user.id if message.from_user else 0
-    _post_add_waiting_media.discard(uid)
-    text = (message.text or "").strip()
-    if not text:
-        await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
-        return
-    _post_add_pending[uid] = {"content_type": "text", "text": text}
-    await message.answer(text, reply_markup=post_add_confirm_keyboard())
-
-
-# ---------- Content: photo, video, caption ----------
+# ---------- Content: photo, video ----------
 @router.message(F.chat.type == ChatType.PRIVATE, F.photo)
 async def admin_save_photo(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
@@ -255,16 +216,6 @@ async def admin_save_video(message: Message) -> None:
         "caption": (message.caption or "").strip(),
     }
     await message.answer(POST_ADD_SEND_CAPTION, reply_markup=post_add_confirm_keyboard())
-
-
-@router.message(F.chat.type == ChatType.PRIVATE, F.text, _PostAddPendingFilter())
-async def admin_post_add_caption(message: Message) -> None:
-    """Post qo'shish: caption matnini qabul qilish."""
-    uid = message.from_user.id if message.from_user else 0
-    if uid not in _post_add_pending:
-        return
-    _post_add_pending[uid]["caption"] = (message.text or "").strip()
-    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
 
 
 @router.callback_query(F.data == "confirm_post_add")
