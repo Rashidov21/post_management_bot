@@ -151,7 +151,7 @@ async def handle_admin_text_post(message: Message) -> None:
         await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
         return
     _post_add_pending[uid] = {"content_type": "text", "text": text}
-    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+    await message.answer(text, reply_markup=post_add_confirm_keyboard())
 
 
 def _help_text() -> str:
@@ -192,7 +192,7 @@ async def admin_post_add_text(message: Message) -> None:
         await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
         return
     _post_add_pending[uid] = {"content_type": "text", "text": text}
-    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+    await message.answer(text, reply_markup=post_add_confirm_keyboard())
 
 
 # ---------- Content: photo, video, caption ----------
