@@ -26,7 +26,7 @@ from bot.texts import (
     ADMIN_REMOVED, ADMIN_NOT_FOUND,
     ADMIN_ADD_PROMPT, ADMIN_ADD_INVALID_ID,
     POST_ADD_SEND_MEDIA, POST_ADD_SEND_CAPTION, POST_ADD_CAPTION_ADDED,
-    POST_ADD_SAVED, POST_ADD_CANCELLED,
+    POST_ADD_SAVED, POST_ADD_CANCELLED, POST_ADD_ALREADY_PENDING,
     POST_ADD_PICK_TIME_HOUR, POST_ADD_PICK_TIME_MINUTE,
     ADMIN_ONLY,
 )
@@ -142,6 +142,7 @@ async def handle_admin_text_post(message: Message) -> None:
     """Matnli post qo'shish — user yoki admin router dan chaqiriladi (admin/owner matn yuborganda)."""
     uid = message.from_user.id if message.from_user else 0
     if uid in _post_add_pending:
+        await message.answer(POST_ADD_ALREADY_PENDING, reply_markup=post_add_confirm_keyboard())
         return
     _post_add_waiting_media.discard(uid)
     text = (message.text or "").strip()

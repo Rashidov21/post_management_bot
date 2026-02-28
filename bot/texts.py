@@ -49,6 +49,7 @@ POST_ADD_SEND_CAPTION = "Matn (caption) yozing (ixtiyoriy) yoki «Yakunlash» tu
 POST_ADD_CAPTION_ADDED = "Matn qo'shildi. «Yakunlash» tugmasini bosing."
 POST_ADD_SAVED = "Post saqlandi va aktiv post sifatida belgilandi."
 POST_ADD_CANCELLED = "Bekor qilindi."
+POST_ADD_ALREADY_PENDING = "Sizda allaqachon post kutilmoqda. Avval «Yakunlash» yoki «Bekor qilish» ni bosing, keyin yangi matn yuboring."
 POST_ADD_PICK_TIME_HOUR = "Nashr vaqtini tanlang: soat"
 POST_ADD_PICK_TIME_MINUTE = "Minut tanlang"
 BTN_POST_CONFIRM = "✅ Yakunlash"
