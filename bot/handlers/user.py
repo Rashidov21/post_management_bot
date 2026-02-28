@@ -16,7 +16,6 @@ from bot.texts import (
     WELCOME,
     USER_SIMPLE_REPLY,
     BTN_HELP,
-    BTN_HISTORY,
     BTN_ADD_POST,
     BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
@@ -30,29 +29,35 @@ logger = logging.getLogger(__name__)
 router = Router(name="user")
 
 # Standart tugma matnlari — bular post flow'ga tushmasin, boshqa handlerga qoladi
-STANDARD_BUTTON_TEXTS = frozenset({BTN_HELP, BTN_HISTORY, BTN_ADD_POST, BTN_ADD_TEXT_POST, BTN_TARGET_GROUP})
+STANDARD_BUTTON_TEXTS = frozenset({BTN_HELP, BTN_ADD_POST, BTN_ADD_TEXT_POST, BTN_TARGET_GROUP})
+
+
+async def _handle_admin_start(message: Message) -> None:
+    """Admin/Owner /start: xush kelibsiz + barcha mavjud postlar (O'chirish tugmalari bilan)."""
+    uid = message.from_user.id if message.from_user else 0
+    user_is_owner = is_owner(uid)
+    await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
+    await admin_handlers.send_all_posts_to_admin(message.bot, message.chat.id, uid)
 
 
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_deep(message: Message, command: CommandObject = None) -> None:
-    """Start with optional ?start=post_123. Oddiy user uchun faqat tushuntiruvchi javob."""
     uid = message.from_user.id if message.from_user else 0
     user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
     if user_is_owner or is_admin_user:
-        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
+        await _handle_admin_start(message)
     else:
         await message.answer(USER_SIMPLE_REPLY)
 
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
-    """Regular /start in private (guruh posti orqali emas)."""
     uid = message.from_user.id if message.from_user else 0
     user_is_owner = is_owner(uid)
     is_admin_user = await admin_service.is_admin(uid)
     if user_is_owner or is_admin_user:
-        await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
+        await _handle_admin_start(message)
     else:
         await message.answer(USER_SIMPLE_REPLY)
 

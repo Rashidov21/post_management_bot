@@ -105,24 +105,36 @@ async def set_schedule_enabled(time_str: str, enabled: bool) -> bool:
     return cur.rowcount > 0
 
 
-async def get_content_id_for_schedule(schedule_id: int) -> Optional[int]:
-    """Which content_id is assigned to this schedule (time). None if none."""
+async def get_content_ids_for_schedule(schedule_id: int) -> List[int]:
+    """Shu vaqtga biriktirilgan barcha content_id larni qaytarish."""
     conn = get_db()
     async with conn.execute(
         "SELECT content_id FROM content_schedule WHERE schedule_id = ?",
         (schedule_id,),
     ) as cur:
-        row = await cur.fetchone()
-    return row["content_id"] if row else None
+        rows = await cur.fetchall()
+    return [r["content_id"] for r in rows]
 
 
-async def set_schedule_content(schedule_id: int, content_id: int) -> bool:
-    """Assign a post to this schedule time (one post per time). INSERT OR REPLACE."""
+async def get_content_id_for_schedule(schedule_id: int) -> Optional[int]:
+    """Birinchi biriktirilgan content_id (backward compat). None if none."""
+    ids = await get_content_ids_for_schedule(schedule_id)
+    return ids[0] if ids else None
+
+
+async def add_schedule_content(schedule_id: int, content_id: int) -> bool:
+    """Shu vaqtga yangi post biriktirish (ko'p post biriktirilishi mumkin)."""
     conn = get_db()
     try:
+        async with conn.execute(
+            "SELECT id FROM content_schedule WHERE schedule_id = ? AND content_id = ?",
+            (schedule_id, content_id),
+        ) as cur:
+            existing = await cur.fetchone()
+        if existing:
+            return True
         await conn.execute(
-            """INSERT INTO content_schedule (schedule_id, content_id) VALUES (?, ?)
-               ON CONFLICT(schedule_id) DO UPDATE SET content_id = excluded.content_id""",
+            "INSERT INTO content_schedule (schedule_id, content_id) VALUES (?, ?)",
             (schedule_id, content_id),
         )
         await conn.commit()
@@ -132,8 +144,13 @@ async def set_schedule_content(schedule_id: int, content_id: int) -> bool:
         return False
 
 
+async def set_schedule_content(schedule_id: int, content_id: int) -> bool:
+    """Shu vaqtga post biriktirish (add_schedule_content alias)."""
+    return await add_schedule_content(schedule_id, content_id)
+
+
 async def get_schedule_ids_for_content(content_id: int) -> List[int]:
-    """List schedule_id(s) that are assigned to this content."""
+    """Shu content biriktirilgan barcha schedule_id lar."""
     conn = get_db()
     async with conn.execute(
         "SELECT schedule_id FROM content_schedule WHERE content_id = ?",

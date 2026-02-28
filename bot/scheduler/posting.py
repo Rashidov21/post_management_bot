@@ -13,28 +13,23 @@ logger = logging.getLogger(__name__)
 
 async def post_scheduled_content(bot: Bot, bot_username: str, schedule_id: int) -> None:
     """
-    At this schedule time: post the content assigned to this schedule_id.
-    If no content assigned, or content publishing_enabled=0, skip.
+    Shu vaqtga biriktirilgan barcha postlarni guruhga yuborish.
+    Har bir postni alohida xabar sifatida yuboradi.
     """
     target_group_id = await settings_service.get_target_group_id()
     if not target_group_id:
         logger.warning("Target group not set, skipping scheduled post")
         return
-    content_id = await schedule_service.get_content_id_for_schedule(schedule_id)
-    if not content_id:
+    content_ids = await schedule_service.get_content_ids_for_schedule(schedule_id)
+    if not content_ids:
         logger.warning("Reja vaqtida post chiqmadi: schedule_id=%s ga content biriktirilmagan", schedule_id)
         return
-    content = await content_service.get_content_by_id(content_id)
-    # Skip if content missing, deleted, or publishing disabled
-    if not content or content.status != "active" or not content.publishing_enabled:
-        logger.info(
-            "Reja vaqtida o'tkazib yuborildi: schedule_id=%s, content_id=%s (content yo'q/active emas/publishing o'chiq)",
-            schedule_id, content_id,
-        )
-        return
-    ok = await post_content_by_id_to_group(bot, bot_username, content_id)
-    if ok:
-        logger.info("Scheduled post: content %s at schedule_id %s", content_id, schedule_id)
+    posted = 0
+    for content_id in content_ids:
+        ok = await post_content_by_id_to_group(bot, bot_username, content_id)
+        if ok:
+            posted += 1
+    logger.info("Scheduled posts: %d/%d sent at schedule_id %s", posted, len(content_ids), schedule_id)
 
 
 async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: int) -> bool:
@@ -55,12 +50,14 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
                 chat_id=target_group_id,
                 photo=content.file_id,
                 caption=content.caption or "",
+                parse_mode=None,
             )
         elif content.content_type == "video" and content.file_id:
             msg = await bot.send_video(
                 chat_id=target_group_id,
                 video=content.file_id,
                 caption=content.caption or "",
+                parse_mode=None,
             )
         elif content.content_type == "text" or content.text:
             text = (content.text or content.caption or "").strip()
@@ -71,6 +68,7 @@ async def post_content_by_id_to_group(bot: Bot, bot_username: str, content_id: i
             msg = await bot.send_message(
                 chat_id=target_group_id,
                 text=text,
+                parse_mode=None,
             )
         else:
             return False

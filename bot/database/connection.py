@@ -137,12 +137,58 @@ async def init_db() -> None:
         try:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS content_schedule (
-                    schedule_id INTEGER PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    schedule_id INTEGER NOT NULL,
                     content_id INTEGER NOT NULL,
                     FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
-                    FOREIGN KEY (content_id) REFERENCES content(id)
+                    FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
                 )
             """)
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_content_schedule_schedule ON content_schedule(schedule_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_content_schedule_content ON content_schedule(content_id)"
+            )
+            await conn.commit()
+        except Exception:
+            pass
+        # Eski content_schedule (schedule_id PRIMARY KEY) yangi sxemaga o'tkazish
+        try:
+            async with conn.execute("PRAGMA table_info(content_schedule)") as cur:
+                cols = {row["name"] for row in await cur.fetchall()}
+            if "id" not in cols:
+                await conn.execute("ALTER TABLE content_schedule RENAME TO content_schedule_old")
+                await conn.execute("""
+                    CREATE TABLE content_schedule (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        content_id INTEGER NOT NULL,
+                        FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+                        FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
+                    )
+                """)
+                await conn.execute(
+                    "INSERT INTO content_schedule (schedule_id, content_id) SELECT schedule_id, content_id FROM content_schedule_old"
+                )
+                await conn.execute("DROP TABLE content_schedule_old")
+                await conn.commit()
+        except Exception:
+            pass
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS content_admin_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content_id INTEGER NOT NULL,
+                    admin_uid INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    message_id INTEGER NOT NULL,
+                    FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
+                )
+            """)
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_content_admin_messages_content ON content_admin_messages(content_id)"
+            )
             await conn.commit()
         except Exception:
             pass

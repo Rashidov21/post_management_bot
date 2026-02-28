@@ -131,3 +131,31 @@ async def log_post(content_id: int, group_id: int, message_id: int) -> None:
         (content_id, group_id, message_id),
     )
     await conn.commit()
+
+
+async def save_admin_message(content_id: int, admin_uid: int, chat_id: int, message_id: int) -> None:
+    """Admin chatida yuborilgan post xabarini DB ga saqlash."""
+    conn = get_db()
+    await conn.execute(
+        "INSERT INTO content_admin_messages (content_id, admin_uid, chat_id, message_id) VALUES (?, ?, ?, ?)",
+        (content_id, admin_uid, chat_id, message_id),
+    )
+    await conn.commit()
+
+
+async def get_admin_messages(content_id: int) -> list:
+    """Berilgan content uchun barcha admin chat xabarlarini qaytarish: [(chat_id, message_id), ...]."""
+    conn = get_db()
+    async with conn.execute(
+        "SELECT chat_id, message_id FROM content_admin_messages WHERE content_id = ?",
+        (content_id,),
+    ) as cur:
+        rows = await cur.fetchall()
+    return [(row["chat_id"], row["message_id"]) for row in rows]
+
+
+async def delete_admin_messages(content_id: int) -> None:
+    """Berilgan content ga tegishli barcha admin xabar yozuvlarini o'chirish."""
+    conn = get_db()
+    await conn.execute("DELETE FROM content_admin_messages WHERE content_id = ?", (content_id,))
+    await conn.commit()

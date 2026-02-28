@@ -17,7 +17,7 @@ from bot.texts import (
     ADD_TEXT_EMPTY,
     TIMES_SET, TARGET_GROUP_SET, TARGET_GROUP_PROMPT_ID, TARGET_GROUP_ID_RECEIVED,
     GROUP_ID_SHOULD_BE_NEGATIVE,
-    CONTENT_SAVED, NO_ACTIVE_CONTENT, HISTORY_HEADER, POST_DELETED, POST_NOT_FOUND,
+    CONTENT_SAVED, POST_DELETED, POST_NOT_FOUND,
     SCHEDULE_ADDED, SCHEDULE_REMOVED, SCHEDULE_INVALID, CURRENT_TIMES,
     SCHEDULE_ADD_TIME_HINT,
     SCHEDULE_PICK_HOUR, SCHEDULE_PICK_MINUTE, SCHEDULE_TIME_ADDED,
@@ -42,14 +42,11 @@ from bot.services import (
 from bot.scheduler import posting as posting_module
 from bot.texts import (
     BTN_HELP,
-    BTN_HISTORY,
     BTN_ADD_POST,
     BTN_TARGET_GROUP,
-    BTN_ADMINS,
 )
 from bot.keyboards.reply import admin_main_keyboard
 from bot.keyboards.inline import (
-    history_refresh_keyboard,
     history_delete_keyboard,
     schedule_keyboard,
     confirm_target_group_keyboard,
@@ -62,7 +59,6 @@ from bot.keyboards.inline import (
     schedule_hour_keyboard,
     schedule_minute_keyboard,
     schedule_pick_post_keyboard,
-    owner_admin_list_keyboard,
     admin_main_inline_keyboard,
 )
 from config import is_owner
@@ -72,7 +68,6 @@ logger = logging.getLogger(__name__)
 # Reply keyboard tugma matnlari — admin_text_ignored_for_content ularni yutmasin, maxsus handlerlar ishlasin
 _ADMIN_BUTTON_TEXTS = frozenset({
     BTN_HELP,
-    BTN_HISTORY,
     BTN_ADD_POST,
     BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
@@ -86,8 +81,6 @@ _schedule_pending: dict[int, dict] = {}
 # Nashr guruhi: ID kiritiladi, keyin inline tasdiq
 _target_group_awaiting: set[int] = set()
 _target_group_pending: dict[int, int] = {}
-# Admin qo'shish: owner ID kiritadi (Adminlar → Qo'shish)
-_admin_add_awaiting: set[int] = set()
 # Post qo'shish: rasm/video kutiladi, keyin caption va Yakunlash/Bekor
 _post_add_waiting_media: set[int] = set()
 _post_add_pending: dict[int, dict] = {}  # uid -> {content_type, file_id, caption}
@@ -97,27 +90,14 @@ _post_add_confirm_pending: dict[int, dict] = {}
 _text_post_awaiting: set[int] = set()  # matn kutilmoqda
 _text_post_pending: dict[int, dict] = {}  # uid -> {"text": str}
 _text_post_confirm_pending: dict[int, dict] = {}  # uid -> {"text": str, "hour": int, "minute": str}
-# Postlar tarixi: har bir post uchun content_id -> (chat_id, message_id); "_header" -> header xabari
-# Qo'shish/o'chirishda chatga qayta tashlanmaydi, faqat bitta xabar o'chiriladi yoki yangi post yuboriladi
-_history_message_ids: dict[int, dict] = {}  # uid -> { content_id: (chat_id, message_id), "_header": (chat_id, message_id) }
 
 
-class _AdminAddAwaitingFilter(Filter):
-    """True when user is in admin-add flow (entering ID)."""
-
-    async def __call__(self, message: Message) -> bool:
-        return (message.from_user.id if message.from_user else 0) in _admin_add_awaiting
-
-
-class _InGroupIdOrAdminFlowFilter(Filter):
-    """True when user is entering group ID or admin ID (boshqa flowda); matnli post uchun emas."""
+class _InGroupIdFlowFilter(Filter):
+    """True when user is entering group ID (target group flow)."""
 
     async def __call__(self, message: Message) -> bool:
         uid = message.from_user.id if message.from_user else 0
-        return (
-            uid in _target_group_awaiting
-            or uid in _admin_add_awaiting
-        )
+        return uid in _target_group_awaiting
 
 
 async def handle_admin_text_post(message: Message) -> None:
@@ -492,7 +472,7 @@ async def admin_add_text_empty(message: Message) -> None:
     F.text,
     F.text.startswith("/") == False,
     ~F.text.in_(_ADMIN_BUTTON_TEXTS),
-    _InGroupIdOrAdminFlowFilter(),
+    _InGroupIdFlowFilter(),
 )
 async def admin_text_ignored_for_content(message: Message) -> None:
     """Guruh ID / admin ID kiritish flow'ida yuborilgan matn (post emas) — user router ishlamasligi uchun yutib qolinadi."""
@@ -556,74 +536,45 @@ def _cap_or_text(p, max_cap=1024, max_text=4096) -> tuple:
     return cap, text
 
 
-async def _send_single_post(bot, chat_id, content, uid: int) -> None:
-    """Bitta postni chatga yuboradi va history map ga (content_id -> (chat_id, message_id)) qo'shadi."""
-    if _history_message_ids.get(uid) is None:
-        _history_message_ids[uid] = {}
+async def _send_single_post(bot, chat_id: int, content, uid: int) -> None:
+    """Bitta postni chatga yuboradi: avval eski admin xabarlarini o'chiradi, keyin yangi yuboradi va DB ga saqlaydi."""
+    old_msgs = await content_service.get_admin_messages(content.id)
+    for old_chat_id, old_message_id in old_msgs:
+        try:
+            await bot.delete_message(old_chat_id, old_message_id)
+        except Exception:
+            pass
+    await content_service.delete_admin_messages(content.id)
+
     cap, text = _cap_or_text(content)
     try:
+        m = None
         if content.content_type == "photo" and content.file_id:
             m = await bot.send_photo(
-                chat_id, content.file_id, caption=cap, reply_markup=history_delete_keyboard(content.id)
+                chat_id, content.file_id, caption=cap,
+                parse_mode=None, reply_markup=history_delete_keyboard(content.id)
             )
-            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
         elif content.content_type == "video" and content.file_id:
             m = await bot.send_video(
-                chat_id, content.file_id, caption=cap, reply_markup=history_delete_keyboard(content.id)
+                chat_id, content.file_id, caption=cap,
+                parse_mode=None, reply_markup=history_delete_keyboard(content.id)
             )
-            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
         elif content.content_type == "text" or (getattr(content, "text", None) and (content.text or "").strip()):
             m = await bot.send_message(
-                chat_id, text, reply_markup=history_delete_keyboard(content.id)
+                chat_id, text, parse_mode=None, reply_markup=history_delete_keyboard(content.id)
             )
-            _history_message_ids[uid][content.id] = (chat_id, m.message_id)
+        if m is not None:
+            await content_service.save_admin_message(content.id, uid, chat_id, m.message_id)
     except Exception as e:
         logger.exception("Single post %s send failed: %s", content.id, e)
 
 
-async def _send_history(target):
-    """Send history: header + har bir post (o'zida inline O'chirish). Eski xabarlar o'chiriladi, keyin qayta yuboriladi."""
-    bot = target.bot if isinstance(target, Message) else target.message.bot
-    chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
-    uid = (target.from_user.id if target.from_user else 0) if isinstance(target, Message) else (target.from_user.id if target.from_user else 0)
-    prev = _history_message_ids.get(uid) or {}
-    for key in list(prev):
-        cid, mid = prev[key]
-        try:
-            await bot.delete_message(cid, mid)
-        except Exception:
-            pass
-    _history_message_ids[uid] = {}
-    posts = await content_service.list_content(limit=10, include_deleted=False)
+async def send_all_posts_to_admin(bot, chat_id: int, uid: int) -> None:
+    """Admin uchun barcha aktiv postlarni chatga yuboradi (eski xabarlar o'chiriladi)."""
+    posts = await content_service.list_content(include_deleted=False)
     posts = sorted(posts, key=lambda p: p.id)
-    if not posts:
-        msg = await bot.send_message(
-            chat_id,
-            HISTORY_HEADER + "\n(bo'sh)",
-            reply_markup=history_refresh_keyboard(),
-        )
-        _history_message_ids[uid]["_header"] = (chat_id, msg.message_id)
-        return
-    header_msg = await bot.send_message(
-        chat_id,
-        HISTORY_HEADER,
-        reply_markup=history_refresh_keyboard(),
-    )
-    _history_message_ids[uid]["_header"] = (chat_id, header_msg.message_id)
     for p in posts:
         await _send_single_post(bot, chat_id, p, uid)
-
-
-@router.message(F.chat.type == ChatType.PRIVATE, F.text == "/history")
-@router.message(F.chat.type == ChatType.PRIVATE, F.text == BTN_HISTORY)
-async def cmd_history(message: Message) -> None:
-    await _send_history(message)
-
-
-@router.callback_query(F.data == "refresh_history")
-async def cb_refresh_history(callback: CallbackQuery) -> None:
-    await _send_history(callback)
-    await callback.answer("Yangilandi.")
 
 
 @router.callback_query(F.data.regexp(re.compile(r"^pub_on_(\d+)$")))
@@ -674,13 +625,12 @@ async def cb_delete_post(callback: CallbackQuery) -> None:
         await callback.answer()
         return
     cid = int(match.group(1))
+    admin_messages = await content_service.get_admin_messages(cid)
     ok = await content_service.delete_content(cid)
     if ok:
-        uid = callback.from_user.id if callback.from_user else 0
-        msg_loc = _history_message_ids.get(uid, {}).pop(cid, None)
-        if msg_loc:
+        for chat_id, message_id in admin_messages:
             try:
-                await callback.bot.delete_message(msg_loc[0], msg_loc[1])
+                await callback.bot.delete_message(chat_id, message_id)
             except Exception:
                 pass
         await callback.answer(POST_DELETED)
@@ -736,47 +686,6 @@ async def cmd_set_target_group_private(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     _target_group_awaiting.add(uid)
     await message.answer(TARGET_GROUP_PROMPT_ID, reply_markup=_admin_kb(message))
-
-
-@router.message(F.chat.type == ChatType.PRIVATE, F.text, _AdminAddAwaitingFilter())
-async def admin_add_by_id_message(message: Message) -> None:
-    """Owner: Admin qo'shish — ID va ixtiyoriy username/ism/familiya (masalan: 123456789 @user John Doe)."""
-    uid = message.from_user.id if message.from_user else 0
-    raw = (message.text or "").strip()
-    _admin_add_awaiting.discard(uid)
-    parts = raw.split()
-    if not parts or not parts[0].isdigit():
-        await message.answer(ADMIN_ADD_INVALID_ID, reply_markup=_admin_kb(message))
-        return
-    telegram_id = int(parts[0])
-    username = None
-    first_name = None
-    last_name = None
-    # Optional username as second token (starts with @ or looks like username)
-    idx = 1
-    if len(parts) > 1 and not parts[1].replace(".", "").isdigit():
-        if parts[1].startswith("@"):
-            username = parts[1].lstrip("@")
-        else:
-            # Could be username or first name; if next token exists and starts with @, treat this as first name
-            username = parts[1] if len(parts) == 2 or parts[2].startswith("@") else None
-            if username is None:
-                first_name = parts[1]
-        idx = 2
-    # Remaining tokens as name
-    if first_name is None and len(parts) > idx:
-        first_name = parts[idx]
-        idx += 1
-    if len(parts) > idx:
-        last_name = " ".join(parts[idx:])
-    if await admin_service.is_admin(telegram_id):
-        await message.answer(ADMIN_ALREADY, reply_markup=_admin_kb(message))
-        return
-    ok = await admin_service.add_admin(telegram_id, username, first_name=first_name, last_name=last_name)
-    await message.answer(
-        ADMIN_ADDED if ok else "Xatolik yuz berdi.",
-        reply_markup=_admin_kb(message),
-    )
 
 
 @router.message(F.chat.type == ChatType.PRIVATE, F.text.regexp(re.compile(r"^-?\d+$")))
@@ -865,8 +774,7 @@ async def cb_del_time(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "schedule_back")
 async def cb_schedule_back(callback: CallbackQuery) -> None:
-    # Backward compatibility: just go to main inline menu.
-    await cb_inline_history(callback)
+    await cb_nav_home(callback)
 
 
 @router.callback_query(F.data.regexp(re.compile(r"^assign_post_(\d+)$")))
@@ -958,15 +866,12 @@ async def cb_schedule_minute(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "inline_history")
 async def cb_inline_history(callback: CallbackQuery) -> None:
-    await _send_history(callback)
-    await callback.answer()
+    await cb_nav_home(callback)
 
 
 @router.callback_query(F.data == "inline_schedule")
 async def cb_inline_schedule(callback: CallbackQuery) -> None:
-    # Backward compatibility: schedule inline tugmasi endi tarixni ko'rsatadi.
-    await cb_inline_history(callback)
-    await callback.answer()
+    await cb_nav_home(callback)
 
 
 @router.callback_query(F.data == "nav_home")
@@ -979,87 +884,3 @@ async def cb_nav_home(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data == "cancel_admin_add")
-async def cb_cancel_admin_add(callback: CallbackQuery) -> None:
-    uid = callback.from_user.id if callback.from_user else 0
-    _admin_add_awaiting.discard(uid)
-    await callback.answer("Bekor qilindi.")
-
-
-# ---------- Owner inline: admin list / help (only owner can use) ----------
-def _format_admin_list_message(admins: list) -> tuple[str, object]:
-    """Return (text, reply_markup) for admin list."""
-    from bot.texts import LIST_ADMINS_HEADER
-    if not admins:
-        return LIST_ADMINS_HEADER + "\n(bo'sh)", owner_admin_list_keyboard([])
-    lines = [LIST_ADMINS_HEADER]
-    for a in admins:
-        uname = f"@{a.username}" if getattr(a, "username", None) else ""
-        name = " ".join(filter(None, [getattr(a, "first_name", None), getattr(a, "last_name", None)])) or "—"
-        added = getattr(a, "added_at", None)
-        added_str = added.strftime("%Y-%m-%d %H:%M") if added else ""
-        lines.append(f"• {a.telegram_id} {uname} | {name} | qo'shilgan: {added_str}")
-    text = "\n".join(lines)
-    return text, owner_admin_list_keyboard(admins)
-
-
-@router.callback_query(F.data == "admin_list")
-async def cb_admin_list(callback: CallbackQuery) -> None:
-    if not is_owner(callback.from_user.id or 0):
-        await callback.answer("Faqat egasi.", show_alert=True)
-        return
-    admins = await admin_service.list_admins()
-    text, kb = _format_admin_list_message(admins)
-    await callback.message.edit_text(text, reply_markup=kb)
-    await callback.answer()
-
-
-@router.callback_query(F.data.regexp(re.compile(r"^remove_admin_(\d+)$")))
-async def cb_remove_admin(callback: CallbackQuery) -> None:
-    if not is_owner(callback.from_user.id or 0):
-        await callback.answer("Faqat egasi.", show_alert=True)
-        return
-    match = callback.data and re.match(r"^remove_admin_(\d+)$", callback.data)
-    if not match:
-        await callback.answer()
-        return
-    telegram_id = int(match.group(1))
-    ok = await admin_service.remove_admin(telegram_id)
-    if ok:
-        admins = await admin_service.list_admins()
-        text, kb = _format_admin_list_message(admins)
-        await callback.message.edit_text(text, reply_markup=kb)
-        await callback.answer(ADMIN_REMOVED)
-    else:
-        await callback.answer(ADMIN_NOT_FOUND)
-
-
-@router.callback_query(F.data == "admin_help_add")
-async def cb_admin_help_add(callback: CallbackQuery) -> None:
-    from bot.texts import ADMIN_ADD_PROMPT
-
-    if not is_owner(callback.from_user.id or 0):
-        await callback.answer("Faqat egasi.", show_alert=True)
-        return
-    _admin_add_awaiting.add(callback.from_user.id)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Bekor", callback_data="cancel_admin_add")],
-        [InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="nav_home")],
-    ])
-    await callback.message.edit_text(ADMIN_ADD_PROMPT, reply_markup=kb)
-    await callback.answer()
-
-
-@router.callback_query(F.data == "admin_help_remove")
-async def cb_admin_help_remove(callback: CallbackQuery) -> None:
-    from bot.texts import REPLY_TO_REMOVE_ADMIN
-
-    if not is_owner(callback.from_user.id or 0):
-        await callback.answer("Faqat egasi.", show_alert=True)
-        return
-    await callback.message.edit_text(REPLY_TO_REMOVE_ADMIN, reply_markup=InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="nav_home")],
-        ]
-    ))
-    await callback.answer()

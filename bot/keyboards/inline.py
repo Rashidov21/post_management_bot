@@ -5,12 +5,6 @@ Inline keyboards for user and admin flows.
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.texts import (
-    BTN_ADMIN_LIST,
-    BTN_ADMIN_ADD_HINT,
-    BTN_ADMIN_REMOVE_HINT,
-    BTN_REFRESH_HISTORY,
-    BTN_HISTORY_BACK,
-    BTN_INLINE_HISTORY,
     BTN_CONFIRM_TARGET_GROUP,
     BTN_POST_CONFIRM,
     BTN_POST_CANCEL,
@@ -161,39 +155,7 @@ def text_post_schedule_minute_keyboard() -> InlineKeyboardMarkup:
 
 
 def admin_main_inline_keyboard() -> InlineKeyboardMarkup:
-    """Admin/Owner: asosiy amallar — faqat Postlar tarixi."""
+    """Admin/Owner: Yordam va Bosh menyu."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text=BTN_INLINE_HISTORY, callback_data="inline_history"),
-        ],
-        [
-            InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home"),
-        ],
-    ])
-
-
-def owner_admin_list_keyboard(admins: list) -> InlineKeyboardMarkup:
-    """
-    Owner: admin ro'yxati — har bir admin uchun Chat (username bo'lsa) va O'chirish.
-    """
-    rows = []
-    for a in admins:
-        tid = getattr(a, "telegram_id", a) if hasattr(a, "telegram_id") else a
-        uname = getattr(a, "username", None)
-        buttons = []
-        if uname:
-            buttons.append(InlineKeyboardButton(text="Chat", url=f"https://t.me/{uname}"))
-        buttons.append(InlineKeyboardButton(text="O'chirish", callback_data=f"remove_admin_{tid}"))
-        rows.append(buttons)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def owner_admins_keyboard() -> InlineKeyboardMarkup:
-    """Owner: admin management inline menu."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=BTN_ADMIN_LIST, callback_data="admin_list")],
-        [
-            InlineKeyboardButton(text=BTN_ADMIN_ADD_HINT, callback_data="admin_help_add"),
-            InlineKeyboardButton(text=BTN_ADMIN_REMOVE_HINT, callback_data="admin_help_remove"),
-        ],
+        [InlineKeyboardButton(text=BTN_NAV_HOME, callback_data="nav_home")],
     ])

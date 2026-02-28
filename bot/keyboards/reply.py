@@ -6,7 +6,6 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from bot.texts import (
     BTN_HELP,
-    BTN_HISTORY,
     BTN_ADD_POST,
     BTN_ADD_TEXT_POST,
     BTN_TARGET_GROUP,
@@ -14,10 +13,9 @@ from bot.texts import (
 
 
 def admin_main_keyboard(include_owner: bool = False) -> ReplyKeyboardMarkup:
-    """Admin/Owner: main menu. Hamma uchun bir xil tugmalar."""
+    """Admin/Owner: main menu."""
     rows = [
-        [KeyboardButton(text=BTN_HISTORY), KeyboardButton(text=BTN_ADD_POST)],
-        [KeyboardButton(text=BTN_ADD_TEXT_POST)],
+        [KeyboardButton(text=BTN_ADD_POST), KeyboardButton(text=BTN_ADD_TEXT_POST)],
         [KeyboardButton(text=BTN_TARGET_GROUP)],
         [KeyboardButton(text=BTN_HELP)],
     ]
