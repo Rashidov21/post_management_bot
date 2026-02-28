@@ -138,6 +138,20 @@ class _InGroupIdOrAdminFlowFilter(Filter):
         )
 
 
+async def handle_admin_text_post(message: Message) -> None:
+    """Matnli post qo'shish — user yoki admin router dan chaqiriladi (admin/owner matn yuborganda)."""
+    uid = message.from_user.id if message.from_user else 0
+    if uid in _post_add_pending:
+        return
+    _post_add_waiting_media.discard(uid)
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(POST_ADD_SEND_MEDIA, reply_markup=_admin_kb(message))
+        return
+    _post_add_pending[uid] = {"content_type": "text", "text": text}
+    await message.answer(POST_ADD_CAPTION_ADDED, reply_markup=post_add_confirm_keyboard())
+
+
 def _help_text() -> str:
     return f"{HELP_HEADER}\n\n{HELP_GUIDE}"
 

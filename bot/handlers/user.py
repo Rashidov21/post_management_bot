@@ -2,6 +2,7 @@
 """
 User-facing handlers: oddiy foydalanuvchilar uchun /start va xabarlar.
 Oddiy user: botga xabar yozishi mumkin, lekin bot har doim bitta tushuntiruvchi javob qaytaradi.
+Admin/owner: matn yuborganda matnli post qo'shish (birinchisi user routerda ushlanadi).
 """
 import logging
 
@@ -17,8 +18,21 @@ from bot.texts import (
 from bot.services import admin_service
 from bot.keyboards.reply import admin_main_keyboard
 
+# Admin modulidan matnli post logikasi (user router birinchi bo‘lib admin/owner matnni ushlashi uchun)
+from bot.handlers import admin as admin_handlers
+
 logger = logging.getLogger(__name__)
 router = Router(name="user")
+
+
+class _IsAdminOrOwnerFilter(Filter):
+    """True when user is owner or admin (matnli postni user routerda ushlash uchun)."""
+
+    async def __call__(self, message: Message) -> bool:
+        uid = message.from_user.id if message.from_user else 0
+        if is_owner(uid):
+            return True
+        return await admin_service.is_admin(uid)
 
 
 class _NotAdminOrOwnerFilter(Filter):
@@ -53,6 +67,18 @@ async def cmd_start(message: Message) -> None:
         await message.answer(WELCOME, reply_markup=admin_main_keyboard(include_owner=user_is_owner))
     else:
         await message.answer(USER_SIMPLE_REPLY)
+
+
+@router.message(
+    F.chat.type == "private",
+    F.text,
+    ~F.text.startswith("/"),
+    F.text.filter(lambda t: t not in admin_handlers._ADMIN_BUTTON_TEXTS),
+    _IsAdminOrOwnerFilter(),
+)
+async def admin_owner_text_post(message: Message) -> None:
+    """Admin/owner matn yuborganda — matnli post qo'shish (user routerda birinchi ushlanadi)."""
+    await admin_handlers.handle_admin_text_post(message)
 
 
 @router.message(
